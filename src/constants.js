@@ -1,6 +1,6 @@
 export const SERVICE_NAME = "khaos-nexus-ai-core";
 export const API_VERSION = "1";
-export const SERVICE_VERSION = "0.3.0";
+export const SERVICE_VERSION = "0.4.0";
 export const TARGET_SERVICE = "nexus-ai-core";
 export const MAX_BODY_BYTES = 256 * 1024;
 export const MAX_PROMPT_CHARACTERS = 12_000;
