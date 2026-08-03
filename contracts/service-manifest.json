@@ -1,0 +1,63 @@
+{
+  "contractVersion": "1.0.0",
+  "service": "khaos-nexus-ai-core",
+  "serviceVersion": "0.6.0",
+  "apiVersion": "1",
+  "targetService": "nexus-ai-core",
+  "authentication": "bearer-service-token",
+  "executionAuthority": "khaos-nexus",
+  "directExecution": false,
+  "directDiscordConnection": false,
+  "directServiceForwarding": false,
+  "schedulerOwnedExternally": true,
+  "dndIsolation": {
+    "service": "Khaos-Krew/Khaos-Nexus-AI",
+    "rejectedNamespace": "dnd.*",
+    "directCallsAllowed": false
+  },
+  "compatibility": {
+    "stableApiMajor": "1",
+    "additiveMinorChangesAllowed": true,
+    "breakingChangesRequireNewApiMajor": true,
+    "unknownCapabilitiesMustBeIgnoredUnlessRequired": true
+  },
+  "capabilities": [
+    "nexus.help",
+    "nexus.discord.assist",
+    "nexus.discord.draft",
+    "nexus.server.diagnose",
+    "nexus.update.compare",
+    "nexus.update.analyze",
+    "nexus.update.poll",
+    "nexus.update.state",
+    "nexus.update.evaluate",
+    "nexus.update.digest",
+    "nexus.maintenance.propose",
+    "nexus.incident.summarize"
+  ],
+  "endpoints": [
+    { "key": "health", "method": "GET", "path": "/health", "auth": "none", "capability": null, "clientMethod": "health" },
+    { "key": "capabilities", "method": "GET", "path": "/api/v1/capabilities", "auth": "service-token", "capability": null, "clientMethod": "capabilities" },
+    { "key": "contracts", "method": "GET", "path": "/api/v1/contracts", "auth": "service-token", "capability": null, "clientMethod": "contracts" },
+    { "key": "providerStatus", "method": "GET", "path": "/api/v1/provider/status", "auth": "service-token", "capability": null, "clientMethod": "providerStatus" },
+    { "key": "monitorState", "method": "GET", "path": "/api/v1/monitor/state", "auth": "service-token", "capability": "nexus.update.state", "clientMethod": "monitorState" },
+    { "key": "assist", "method": "POST", "path": "/api/v1/discord/assist", "auth": "service-token", "capability": "dynamic-assist", "clientMethod": "assist" },
+    { "key": "compareUpdates", "method": "POST", "path": "/api/v1/updates/compare", "auth": "service-token", "capability": "nexus.update.compare", "clientMethod": "compareUpdates" },
+    { "key": "analyzeUpdates", "method": "POST", "path": "/api/v1/updates/analyze", "auth": "service-token", "capability": "nexus.update.analyze", "clientMethod": "analyzeUpdates" },
+    { "key": "evaluateUpdates", "method": "POST", "path": "/api/v1/updates/evaluate", "auth": "service-token", "capability": "nexus.update.evaluate", "clientMethod": "evaluateUpdates" },
+    { "key": "digestUpdates", "method": "POST", "path": "/api/v1/updates/digest", "auth": "service-token", "capability": "nexus.update.digest", "clientMethod": "digestUpdates" },
+    { "key": "pollMonitor", "method": "POST", "path": "/api/v1/monitor/poll", "auth": "service-token", "capability": "nexus.update.poll", "clientMethod": "pollMonitor" },
+    { "key": "proposeMaintenance", "method": "POST", "path": "/api/v1/maintenance/plans", "auth": "service-token", "capability": "nexus.maintenance.propose", "clientMethod": "proposeMaintenance" },
+    { "key": "summarizeIncident", "method": "POST", "path": "/api/v1/incidents/summarize", "auth": "service-token", "capability": "nexus.incident.summarize", "clientMethod": "summarizeIncident" }
+  ],
+  "schemas": {
+    "requestEnvelope": "https://khaos-krew.github.io/khaos-nexus-ai-core/contracts/v1/schema.json#/$defs/requestEnvelope",
+    "neutralResponse": "https://khaos-krew.github.io/khaos-nexus-ai-core/contracts/v1/schema.json#/$defs/neutralResponse",
+    "providerStatus": "https://khaos-krew.github.io/khaos-nexus-ai-core/contracts/v1/schema.json#/$defs/providerStatus",
+    "monitorPollResult": "https://khaos-krew.github.io/khaos-nexus-ai-core/contracts/v1/schema.json#/$defs/monitorPollResult",
+    "updateEvaluation": "https://khaos-krew.github.io/khaos-nexus-ai-core/contracts/v1/schema.json#/$defs/updateEvaluation",
+    "updateDigest": "https://khaos-krew.github.io/khaos-nexus-ai-core/contracts/v1/schema.json#/$defs/updateDigest",
+    "maintenanceProposal": "https://khaos-krew.github.io/khaos-nexus-ai-core/contracts/v1/schema.json#/$defs/maintenanceProposal",
+    "errorResponse": "https://khaos-krew.github.io/khaos-nexus-ai-core/contracts/v1/schema.json#/$defs/errorResponse"
+  }
+}
