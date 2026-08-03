@@ -10,6 +10,7 @@ import {
 import { AppError } from "./errors.js";
 import { createNeutralResponse, validateEnvelope, visibilityFrom } from "./contracts.js";
 import { createMaintenancePlan } from "./maintenance.js";
+import { ProviderRouter } from "./provider-factory.js";
 import { DeterministicProvider } from "./provider.js";
 import { authenticateRequest, stableHash } from "./security.js";
 import { createUpdateDigest, evaluateUpdateImpact } from "./update-intelligence.js";
@@ -107,8 +108,31 @@ function requestHeaderMatches(request, requestId) {
   }
 }
 
+function getProviderStatus(provider, { detailed = false } = {}) {
+  const status = typeof provider.status === "function"
+    ? provider.status({ detailed })
+    : { name: provider.name, model: provider.model, ready: provider.ready !== false };
+  if (detailed) return status;
+  return {
+    name: status.name ?? provider.name,
+    model: status.model ?? provider.model,
+    ready: status.ready !== false,
+    store: status.store === true,
+    toolsAllowed: status.toolsAllowed === true,
+    fallback: status.fallback ? {
+      enabled: status.fallback.enabled === true,
+      name: status.fallback.name ?? null,
+      model: status.fallback.model ?? null,
+    } : { enabled: false, name: null, model: null },
+    circuit: status.circuit ? {
+      state: status.circuit.state,
+      openUntil: status.circuit.openUntil ?? null,
+    } : { state: "unavailable", openUntil: null },
+  };
+}
+
 export function createApp({
-  provider = new DeterministicProvider(),
+  provider = new ProviderRouter({ primary: new DeterministicProvider() }),
   monitorService = null,
   serviceToken = "",
   authRequired = false,
@@ -137,14 +161,16 @@ export function createApp({
       const { pathname } = url;
 
       if (request.method === "GET" && pathname === "/health") {
+        const publicProvider = getProviderStatus(provider);
         sendJson(response, 200, {
           status: "ok",
           service: SERVICE_NAME,
           apiVersion: API_VERSION,
           version: SERVICE_VERSION,
           targetService: TARGET_SERVICE,
-          provider: provider.name,
-          model: provider.model,
+          provider: publicProvider.name,
+          model: publicProvider.model,
+          providerStatus: publicProvider,
           updateMonitor: { available: Boolean(monitorService), schedulerOwnedExternally: true },
           isolation: {
             dndService: "Khaos-Krew/Khaos-Nexus-AI",
@@ -181,10 +207,22 @@ export function createApp({
           service: SERVICE_NAME,
           targetService: TARGET_SERVICE,
           capabilities: CAPABILITIES,
+          providerStatus: getProviderStatus(provider),
           rejectedNamespaces: ["dnd.*"],
           directServiceForwarding: false,
           directDiscordConnection: false,
           directExecution: false,
+        }, origin);
+        return;
+      }
+
+      if (request.method === "GET" && pathname === "/api/v1/provider/status") {
+        sendJson(response, 200, {
+          apiVersion: API_VERSION,
+          service: SERVICE_NAME,
+          providerStatus: getProviderStatus(provider, { detailed: true }),
+          contentStored: false,
+          identitiesStored: false,
         }, origin);
         return;
       }
@@ -244,7 +282,7 @@ export function createApp({
           content: generated.content,
           visibility: visibilityFrom(body.visibility),
           presentation: generated.presentation,
-          meta: { provider: provider.name, model: provider.model, executedActions: 0 },
+          meta: { ...(generated.meta ?? {}), executedActions: 0 },
         });
       } else if (pathname === "/api/v1/updates/compare") {
         const comparison = compareUpdateResources(body);
@@ -258,7 +296,7 @@ export function createApp({
         };
       } else if (pathname === "/api/v1/updates/analyze") {
         const comparison = compareUpdateResources(body);
-        const generated = await provider.analyzeUpdates(comparison);
+        const generated = await provider.analyzeUpdates(comparison, { requestId: body.requestId });
         result = createNeutralResponse({
           requestId: body.requestId,
           capability: body.capability,
@@ -266,7 +304,7 @@ export function createApp({
           content: generated.content,
           visibility: visibilityFrom(body.visibility),
           presentation: generated.presentation,
-          meta: { provider: provider.name, model: provider.model, comparison },
+          meta: { ...(generated.meta ?? {}), comparison },
         });
       } else if (pathname === "/api/v1/updates/evaluate") {
         result = {
