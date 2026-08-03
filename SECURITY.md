@@ -19,13 +19,47 @@
 - Every generation request uses `store:false`, `background:false`, strict JSON Schema, no tools, no conversation state, no previous-response state, bounded output tokens, and a Khaos client request ID.
 - Provider instructions explicitly preserve the Khaos Nexus execution boundary and D&D isolation.
 - Prompt and context values are untrusted reference data and cannot become system instructions.
-- Provider responses are bounded, parsed, schema-validated, sanitized, and rejected if refused, incomplete, malformed, oversized, or tool-bearing.
+- Provider responses are bounded, parsed, schema-validated, and rejected if refused, incomplete, malformed, oversized, or tool-bearing.
+- Every deterministic and external output then passes a local capability policy before presentation.
+- The policy rejects false execution/completion claims, D&D/DM/Co-DM leakage, credential-like output, hidden-instruction disclosure, untrusted links, invalid presentation/severity/review behavior, and oversized content.
+- Unsafe Discord mentions are neutralized before presentation.
+- Policy failures are non-retryable, do not affect connectivity circuit state, and never activate fallback.
 - Authentication errors and raw provider error bodies are not forwarded.
 - Safe response metadata is limited to provider name, model, request ID, latency, token counts, storage mode, tool count, and fallback reason.
 - Daily in-memory budgets can cap requests and estimated/actual token usage. Durable billing and organization spending controls remain outside AI Core.
-- Deterministic fallback is disabled by default and may activate only for retryable network, timeout, rate-limit, or transient server failures.
+- Deterministic fallback is disabled by default and may activate only for retryable network, timeout, rate-limit, circuit-open, or transient server failures.
 - Authentication, refusal, policy, schema, unexpected-tool, incomplete-output, and budget failures cannot silently fall back.
 - The general AI provider key and settings are never shared with the D&D AI service.
+
+## Circuit-breaker protections
+
+- Only retryable primary-provider failures count toward the threshold.
+- Failure windows, thresholds, and cooldowns are bounded by server-side configuration.
+- Open circuits skip external provider calls and fail fast or use explicitly enabled deterministic fallback.
+- One half-open probe is allowed after cooldown.
+- Successful probes close the circuit; retryable failed probes reopen it.
+- Non-retryable policy, authentication, refusal, schema, or budget outcomes do not open the circuit.
+- Circuit state is in memory and contains no request or response content.
+
+## Provider observability protections
+
+`GET /api/v1/provider/status` uses the existing service-token authentication model. Telemetry stores only:
+
+- provider and model labels;
+- request, success, failure, fallback, and short-circuit counts;
+- latency and token aggregates;
+- bounded error-code and circuit-transition counters;
+- circuit and budget snapshots.
+
+Telemetry never stores prompts, context, responses, request bodies, provider keys, raw provider errors, Discord IDs, user IDs, guild IDs, channel IDs, server IDs, player IDs, or campaign content. Public health receives only a reduced readiness projection without detailed telemetry.
+
+## Evaluation protections
+
+- Normal CI runs `npm run eval` with the deterministic local provider only.
+- The offline fixture corpus contains no real credentials, production prompts, private server data, Discord identities, or campaign content.
+- Required fixtures cover execution claims, D&D leakage, internal-instruction disclosure, credential-like input, unsafe mentions, schema and presentation requirements, and repeatability.
+- CI fails below the configured pass threshold.
+- No external provider key is required or read by the normal evaluation command.
 
 ## Provider-source protections
 
@@ -63,7 +97,7 @@ The raw webhook body is validated before parsing and is not stored.
 
 ## Built-in protections
 
-The service uses bounded JSON bodies, constant-time token and signature comparison, forbidden credential-field rejection, token-like text redaction, external-text sanitization, Discord mention neutralization, explicit target-service routing, D&D namespace isolation, routing-loop prevention, rate limiting, idempotency, provider budgets, provider fallback policy, source backoff, event deduplication, explicit impact bindings, public/private projections, no-store responses, and restrictive response headers.
+The service uses bounded JSON bodies, constant-time token and signature comparison, forbidden credential-field rejection, token-like text redaction, external-text sanitization, Discord mention neutralization, explicit target-service routing, D&D namespace isolation, routing-loop prevention, rate limiting, idempotency, output policy validation, provider budgets, circuit breaking, redacted telemetry, provider fallback policy, source backoff, event deduplication, explicit impact bindings, public/private projections, no-store responses, and restrictive response headers.
 
 ## Reporting
 
