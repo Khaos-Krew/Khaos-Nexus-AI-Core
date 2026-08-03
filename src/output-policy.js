@@ -40,7 +40,6 @@ const DND_BOUNDARY_PATTERN = /\b(?:dungeon\s+master|game\s+master|co[- ]?dm|d&d\
 const SECRET_PATTERN = /(?:\bBearer\s+[A-Za-z0-9._~+/=-]{8,}|\b(?:sk|ghp|github_pat|xox[baprs])[-_A-Za-z0-9]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|\b(?:OPENAI_API_KEY|DISCORD_TOKEN|RCON_PASSWORD|CLIENT_SECRET)\s*=\s*\S+)/i;
 const INSTRUCTION_DISCLOSURE_PATTERN = /\b(?:my|the)\s+(?:system prompt|developer message|hidden instructions|internal policy|chain of thought)\s+(?:is|says|contains|was)\b/i;
 const URL_PATTERN = /https?:\/\/[^\s)\]}>]+/i;
-const RAW_MENTION_PATTERN = /@everyone|@here|<@&?\d+>/i;
 
 function policyError(code, message) {
   return new AppError(message, { status: 422, code, retryable: false });
@@ -57,14 +56,16 @@ export function validateProviderOutputPolicy({ capability, output }) {
     throw policyError("AI_OUTPUT_SCHEMA_VIOLATION", "Provider output is not an object");
   }
   const policy = capabilityPolicy(capability);
-  const subsystem = sanitizeExternalText(output.subsystem, 80);
-  const content = sanitizeDiscordText(output.content).trim();
+  const rawSubsystem = typeof output.subsystem === "string" ? output.subsystem.trim() : "";
+  const rawContent = typeof output.content === "string" ? output.content.trim() : "";
   const presentation = output.presentation;
 
-  if (!subsystem || !content || !presentation || typeof presentation !== "object" || Array.isArray(presentation)) {
+  if (!rawSubsystem || !rawContent || !presentation || typeof presentation !== "object" || Array.isArray(presentation)) {
     throw policyError("AI_OUTPUT_SCHEMA_VIOLATION", "Provider output is incomplete");
   }
-  if (content.length > 6_000) throw policyError("AI_OUTPUT_TOO_LARGE", "Provider output exceeds the allowed length");
+  if (rawSubsystem.length > 80 || rawContent.length > 6_000) {
+    throw policyError("AI_OUTPUT_TOO_LARGE", "Provider output exceeds the allowed length");
+  }
   if (!policy.types.has(presentation.type)) {
     throw policyError("AI_OUTPUT_PRESENTATION_MISMATCH", "Provider output presentation does not match the capability");
   }
@@ -78,25 +79,26 @@ export function validateProviderOutputPolicy({ capability, output }) {
     throw policyError("AI_OUTPUT_REVIEW_POLICY_MISMATCH", "Provider output review requirement does not match the capability");
   }
 
-  const combined = `${subsystem}\n${content}`;
-  if (EXECUTION_CLAIM_PATTERN.test(combined) || PASSIVE_EXECUTION_PATTERN.test(combined)) {
+  const rawCombined = `${rawSubsystem}\n${rawContent}`;
+  if (EXECUTION_CLAIM_PATTERN.test(rawCombined) || PASSIVE_EXECUTION_PATTERN.test(rawCombined)) {
     throw policyError("AI_OUTPUT_EXECUTION_CLAIM", "Provider output claimed an operation was executed");
   }
-  if (DND_BOUNDARY_PATTERN.test(combined)) {
+  if (DND_BOUNDARY_PATTERN.test(rawCombined)) {
     throw policyError("AI_OUTPUT_DND_BOUNDARY", "Provider output crossed the D&D service boundary");
   }
-  if (SECRET_PATTERN.test(combined)) {
+  if (SECRET_PATTERN.test(rawCombined)) {
     throw policyError("AI_OUTPUT_SECRET_DETECTED", "Provider output contained credential-like data");
   }
-  if (INSTRUCTION_DISCLOSURE_PATTERN.test(combined)) {
+  if (INSTRUCTION_DISCLOSURE_PATTERN.test(rawCombined)) {
     throw policyError("AI_OUTPUT_INSTRUCTION_DISCLOSURE", "Provider output disclosed internal instructions");
   }
-  if (URL_PATTERN.test(combined)) {
+  if (URL_PATTERN.test(rawCombined)) {
     throw policyError("AI_OUTPUT_UNTRUSTED_LINK", "Provider-generated links are not allowed in this response surface");
   }
-  if (RAW_MENTION_PATTERN.test(combined)) {
-    throw policyError("AI_OUTPUT_UNSAFE_MENTION", "Provider output contained an unsafe Discord mention");
-  }
+
+  const subsystem = sanitizeExternalText(rawSubsystem, 80);
+  const content = sanitizeDiscordText(rawContent).trim();
+  if (!subsystem || !content) throw policyError("AI_OUTPUT_SCHEMA_VIOLATION", "Provider output became empty after sanitization");
 
   return {
     ...output,
