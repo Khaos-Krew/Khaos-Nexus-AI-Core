@@ -28,7 +28,7 @@ function sendJson(response, status, body, origin) {
   response.end(JSON.stringify(body));
 }
 
-async function readJson(request) {
+async function readBodyBuffer(request) {
   const chunks = [];
   let size = 0;
   for await (const chunk of request) {
@@ -38,12 +38,20 @@ async function readJson(request) {
     }
     chunks.push(chunk);
   }
-  if (chunks.length === 0) return {};
+  return chunks.length === 0 ? Buffer.alloc(0) : Buffer.concat(chunks);
+}
+
+function parseJsonBuffer(buffer) {
+  if (buffer.length === 0) return {};
   try {
-    return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+    return JSON.parse(buffer.toString("utf8"));
   } catch {
     throw new AppError("Invalid JSON", { status: 400, code: "INVALID_JSON" });
   }
+}
+
+async function readJson(request) {
+  return parseJsonBuffer(await readBodyBuffer(request));
 }
 
 function createRateLimiter({ windowMs = 60_000, limit = 60 } = {}) {
@@ -100,6 +108,7 @@ function requestHeaderMatches(request, requestId) {
 
 export function createApp({
   provider = new DeterministicProvider(),
+  monitorService = null,
   serviceToken = "",
   authRequired = false,
   corsOrigin = "http://localhost:3000",
@@ -114,7 +123,7 @@ export function createApp({
       response.writeHead(204, {
         "Access-Control-Allow-Origin": origin,
         "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type,Authorization,X-Khaos-Request-Id",
+        "Access-Control-Allow-Headers": "Content-Type,Authorization,X-Khaos-Request-Id,X-Hub-Signature-256,X-GitHub-Delivery,X-GitHub-Event",
         "Access-Control-Max-Age": "86400",
         Vary: "Origin",
       });
@@ -135,12 +144,27 @@ export function createApp({
           targetService: TARGET_SERVICE,
           provider: provider.name,
           model: provider.model,
+          updateMonitor: { available: Boolean(monitorService), schedulerOwnedExternally: true },
           isolation: {
             dndService: "Khaos-Krew/Khaos-Nexus-AI",
             directAiToAiCallsAllowed: false,
             executionAuthority: "Khaos Nexus desktop and Nexus Bot",
           },
         }, origin);
+        return;
+      }
+
+      if (request.method === "POST" && pathname === "/api/v1/webhooks/github") {
+        if (!monitorService) throw new AppError("Route not found", { status: 404, code: "NOT_FOUND" });
+        const rawBody = await readBodyBuffer(request);
+        const result = monitorService.handleGithubWebhook({
+          sourceId: url.searchParams.get("sourceId") ?? "",
+          deliveryId: request.headers["x-github-delivery"],
+          eventName: request.headers["x-github-event"],
+          signature: request.headers["x-hub-signature-256"],
+          rawBody,
+        });
+        sendJson(response, 200, { apiVersion: API_VERSION, service: SERVICE_NAME, result }, origin);
         return;
       }
 
@@ -164,6 +188,17 @@ export function createApp({
         return;
       }
 
+      if (request.method === "GET" && pathname === "/api/v1/monitor/state") {
+        if (!monitorService) throw new AppError("Update monitor is not configured", { status: 503, code: "MONITOR_NOT_CONFIGURED" });
+        sendJson(response, 200, {
+          apiVersion: API_VERSION,
+          service: SERVICE_NAME,
+          capability: "nexus.update.state",
+          state: monitorService.state(),
+        }, origin);
+        return;
+      }
+
       if (request.method !== "POST") {
         throw new AppError("Route not found", { status: 404, code: "NOT_FOUND" });
       }
@@ -173,6 +208,7 @@ export function createApp({
         ["/api/v1/discord/assist", new Set(["nexus.help", "nexus.discord.assist", "nexus.discord.draft", "nexus.server.diagnose", "nexus.incident.summarize"])],
         ["/api/v1/updates/compare", new Set(["nexus.update.compare"])],
         ["/api/v1/updates/analyze", new Set(["nexus.update.analyze"])],
+        ["/api/v1/monitor/poll", new Set(["nexus.update.poll"])],
         ["/api/v1/maintenance/plans", new Set(["nexus.maintenance.propose"])],
         ["/api/v1/incidents/summarize", new Set(["nexus.incident.summarize"])],
       ]);
@@ -229,6 +265,16 @@ export function createApp({
           presentation: generated.presentation,
           meta: { provider: provider.name, model: provider.model, comparison },
         });
+      } else if (pathname === "/api/v1/monitor/poll") {
+        if (!monitorService) throw new AppError("Update monitor is not configured", { status: 503, code: "MONITOR_NOT_CONFIGURED" });
+        result = {
+          apiVersion: API_VERSION,
+          requestId: body.requestId,
+          service: SERVICE_NAME,
+          capability: body.capability,
+          monitor: await monitorService.poll(body),
+          execution: { performed: false, schedulerAuthority: "khaos-nexus-shared-scheduler" },
+        };
       } else if (pathname === "/api/v1/maintenance/plans") {
         const plan = createMaintenancePlan(body);
         result = {
