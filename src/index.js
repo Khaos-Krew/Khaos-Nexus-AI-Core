@@ -1,4 +1,7 @@
 import { createApp } from "./app.js";
+import { MonitorService } from "./monitor-service.js";
+import { MonitorStateStore } from "./monitor-store.js";
+import { createSourceAdapterRegistry } from "./source-adapters.js";
 
 const host = process.env.HOST ?? "127.0.0.1";
 const port = Number.parseInt(process.env.PORT ?? "8790", 10);
@@ -6,7 +9,21 @@ const authRequired = process.env.AUTH_REQUIRED === "true";
 const serviceToken = process.env.NEXUS_AI_CORE_SERVICE_TOKEN ?? "";
 const rateLimitPerMinute = Number.parseInt(process.env.RATE_LIMIT_PER_MINUTE ?? "60", 10);
 
+const monitorStateStore = new MonitorStateStore({
+  filePath: process.env.MONITOR_STATE_FILE ?? "",
+});
+const monitorService = new MonitorService({
+  registry: createSourceAdapterRegistry({
+    githubToken: process.env.GITHUB_API_TOKEN ?? "",
+    curseForgeApiKey: process.env.CURSEFORGE_API_KEY ?? "",
+  }),
+  stateStore: monitorStateStore,
+  githubWebhookSecret: process.env.GITHUB_WEBHOOK_SECRET ?? "",
+  githubWebhooksEnabled: process.env.GITHUB_WEBHOOKS_ENABLED === "true",
+});
+
 const server = createApp({
+  monitorService,
   serviceToken,
   authRequired,
   corsOrigin: process.env.CORS_ORIGIN ?? "http://localhost:3000",
