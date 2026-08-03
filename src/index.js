@@ -1,6 +1,7 @@
 import { createApp } from "./app.js";
 import { MonitorService } from "./monitor-service.js";
 import { MonitorStateStore } from "./monitor-store.js";
+import { createProviderFromEnvironment } from "./provider-factory.js";
 import { createSourceAdapterRegistry } from "./source-adapters.js";
 
 const host = process.env.HOST ?? "127.0.0.1";
@@ -9,6 +10,7 @@ const authRequired = process.env.AUTH_REQUIRED === "true";
 const serviceToken = process.env.NEXUS_AI_CORE_SERVICE_TOKEN ?? "";
 const rateLimitPerMinute = Number.parseInt(process.env.RATE_LIMIT_PER_MINUTE ?? "60", 10);
 
+const provider = createProviderFromEnvironment();
 const monitorStateStore = new MonitorStateStore({
   filePath: process.env.MONITOR_STATE_FILE ?? "",
 });
@@ -23,6 +25,7 @@ const monitorService = new MonitorService({
 });
 
 const server = createApp({
+  provider,
   monitorService,
   serviceToken,
   authRequired,
@@ -31,7 +34,7 @@ const server = createApp({
 });
 
 server.listen(port, host, () => {
-  console.log(`Khaos Nexus AI Core listening on http://${host}:${port}`);
+  console.log(`Khaos Nexus AI Core listening on http://${host}:${port} with provider ${provider.name}`);
 });
 
 function shutdown(signal) {

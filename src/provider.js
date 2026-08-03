@@ -1,45 +1,76 @@
 import { sanitizeDiscordText } from "./security.js";
 
+function deterministicMeta(provider, extra = {}) {
+  return {
+    provider: provider.name,
+    model: provider.model,
+    providerRequestId: null,
+    latencyMs: 0,
+    usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+    fallback: null,
+    store: false,
+    toolsUsed: 0,
+    ...extra,
+  };
+}
+
 export class DeterministicProvider {
   constructor() {
     this.name = "deterministic-local";
     this.model = "nexus-core-rules-v1";
+    this.ready = true;
+  }
+
+  status() {
+    return {
+      name: this.name,
+      model: this.model,
+      ready: this.ready,
+      store: false,
+      toolsAllowed: false,
+    };
   }
 
   async assist({ capability, prompt, context = {} }) {
     const safePrompt = sanitizeDiscordText(prompt).trim();
+    let result;
     switch (capability) {
       case "nexus.help":
-        return {
+        result = {
           subsystem: "General Assistance",
           content: "Nexus AI Core can explain Khaos Nexus, summarize operational context, inspect normalized update data, prepare safe drafts, and propose maintenance actions. Khaos Nexus remains the execution authority.",
-          presentation: { type: "help", severity: "information" },
+          presentation: { type: "help", severity: "information", reviewRequired: false },
         };
+        break;
       case "nexus.discord.draft":
-        return {
+        result = {
           subsystem: "Discord Drafts",
           content: `Draft for review:\n\n${safePrompt}`,
           presentation: { type: "draft", severity: "information", reviewRequired: true },
         };
+        break;
       case "nexus.server.diagnose":
-        return {
+        result = {
           subsystem: "Server Diagnostics",
           content: `Diagnostic request recorded: ${safePrompt}\n\nEvidence supplied: ${Object.keys(context).length} context section(s). No server action was executed.`,
-          presentation: { type: "diagnostic_summary", severity: "attention" },
+          presentation: { type: "diagnostic_summary", severity: "attention", reviewRequired: false },
         };
+        break;
       case "nexus.incident.summarize":
-        return {
+        result = {
           subsystem: "Incident Assistant",
           content: `Incident summary draft: ${safePrompt}\n\nThis summary is advisory and does not change incident or server state.`,
-          presentation: { type: "incident_summary", severity: "attention" },
+          presentation: { type: "incident_summary", severity: "attention", reviewRequired: true },
         };
+        break;
       default:
-        return {
+        result = {
           subsystem: "General Assistance",
           content: `Nexus AI Core received the request: ${safePrompt}\n\nNo action was executed.`,
-          presentation: { type: "message", severity: "information" },
+          presentation: { type: "message", severity: "information", reviewRequired: false },
         };
     }
+    return { ...result, meta: deterministicMeta(this) };
   }
 
   async analyzeUpdates(comparison) {
@@ -60,8 +91,9 @@ export class DeterministicProvider {
         "",
         recommendation,
       ].join("\n"),
-      presentation: { type: "update_summary", severity },
+      presentation: { type: "update_summary", severity, reviewRequired: false },
       recommendation,
+      meta: deterministicMeta(this),
     };
   }
 }
