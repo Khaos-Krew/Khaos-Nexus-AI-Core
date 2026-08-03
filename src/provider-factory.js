@@ -12,6 +12,36 @@ function envInteger(env, key, fallback, { min = 0, max = Number.MAX_SAFE_INTEGER
   return parsed;
 }
 
+function safeProviderMetadata(output, provider, fallback = null) {
+  const meta = output?.meta ?? {};
+  return {
+    provider: String(meta.provider ?? provider.name),
+    model: String(meta.model ?? provider.model),
+    providerRequestId: meta.providerRequestId ?? null,
+    latencyMs: Number.isInteger(meta.latencyMs) ? meta.latencyMs : 0,
+    usage: {
+      inputTokens: Number.isInteger(meta.usage?.inputTokens) ? meta.usage.inputTokens : 0,
+      outputTokens: Number.isInteger(meta.usage?.outputTokens) ? meta.usage.outputTokens : 0,
+      totalTokens: Number.isInteger(meta.usage?.totalTokens) ? meta.usage.totalTokens : 0,
+    },
+    store: meta.store === true,
+    toolsUsed: Number.isInteger(meta.toolsUsed) ? meta.toolsUsed : 0,
+    fallback,
+  };
+}
+
+function decorateProviderOutput(output, provider, fallback = null) {
+  const providerMetadata = safeProviderMetadata(output, provider, fallback);
+  return {
+    ...output,
+    presentation: {
+      ...(output.presentation ?? {}),
+      providerMetadata,
+    },
+    meta: providerMetadata,
+  };
+}
+
 export class ProviderRouter {
   constructor({ primary, fallback = null, fallbackOnRetryable = false } = {}) {
     if (!primary) throw new Error("primary provider is required");
@@ -44,22 +74,17 @@ export class ProviderRouter {
 
   async #invoke(method, args) {
     try {
-      return await this.primary[method](...args);
+      const output = await this.primary[method](...args);
+      return decorateProviderOutput(output, this.primary);
     } catch (error) {
       if (!this.fallbackOnRetryable || !this.fallback || error?.retryable !== true) throw error;
       const output = await this.fallback[method](...args);
-      return {
-        ...output,
-        meta: {
-          ...(output.meta ?? {}),
-          fallback: {
-            used: true,
-            fromProvider: this.primary.name,
-            fromModel: this.primary.model,
-            reasonCode: error.code ?? "PROVIDER_RETRYABLE_ERROR",
-          },
-        },
-      };
+      return decorateProviderOutput(output, this.fallback, {
+        used: true,
+        fromProvider: this.primary.name,
+        fromModel: this.primary.model,
+        reasonCode: error.code ?? "PROVIDER_RETRYABLE_ERROR",
+      });
     }
   }
 }
