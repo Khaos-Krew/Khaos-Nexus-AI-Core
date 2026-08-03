@@ -28,7 +28,13 @@ export function validateMonitorSource(input, index = 0) {
   const id = requiredString(input.id, `sources[${index}].id`);
   const provider = String(input.provider ?? "").trim();
   if (!PROVIDERS.has(provider)) throw validationError("Unsupported monitor provider", `sources[${index}].provider`);
-  const base = { id, provider, enabled: input.enabled !== false, allowedChannels: allowedChannels(input.allowedChannels) };
+  const base = {
+    id,
+    provider,
+    enabled: input.enabled !== false,
+    allowedChannels: allowedChannels(input.allowedChannels),
+    emitInitialEvents: input.emitInitialEvents === true,
+  };
 
   if (provider === "github-release") {
     return { ...base, owner: requiredString(input.owner, `sources[${index}].owner`), repo: requiredString(input.repo, `sources[${index}].repo`) };
@@ -63,6 +69,16 @@ function sortNewest(events) {
   return events.sort((a, b) => String(b.publishedAt ?? "").localeCompare(String(a.publishedAt ?? "")));
 }
 
+function safeExternalUrl(value, allowedHosts) {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && allowedHosts.has(url.hostname) ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 function createGithubAdapter({ fetchImpl, githubToken }) {
   return async (source, conditional) => {
     const url = new URL(`https://api.github.com/repos/${encodeURIComponent(source.owner)}/${encodeURIComponent(source.repo)}/releases`);
@@ -82,7 +98,7 @@ function createGithubAdapter({ fetchImpl, githubToken }) {
         title: sanitizeExternalText(release.name ?? release.tag_name, 200),
         changelog: sanitizeExternalText(release.body, 6000),
         publishedAt: release.published_at ?? release.created_at ?? null,
-        externalUrl: release.html_url ?? null,
+        externalUrl: safeExternalUrl(release.html_url, new Set(["github.com"])),
         authoritative: true,
         metadata: { immutable: Boolean(release.immutable), assetCount: Array.isArray(release.assets) ? release.assets.length : 0 },
       }))
@@ -183,7 +199,7 @@ function createSteamNewsAdapter({ fetchImpl }) {
       title: sanitizeExternalText(item.title, 200),
       changelog: sanitizeExternalText(item.contents, 6000),
       publishedAt: Number.isFinite(item.date) ? new Date(item.date * 1000).toISOString() : null,
-      externalUrl: item.url ?? null,
+      externalUrl: safeExternalUrl(item.url, new Set(["store.steampowered.com", "steamcommunity.com"])),
       authoritative: false,
       metadata: { feed: item.feedname ?? null, informationalOnly: true, serverBuildConfirmed: false },
     }));
