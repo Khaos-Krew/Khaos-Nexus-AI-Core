@@ -3,7 +3,7 @@ import { dirname } from "node:path";
 import { stableHash } from "./security.js";
 
 function safeSourceConfig(source) {
-  const allowed = ["id", "provider", "owner", "repo", "project", "modId", "gameVersion", "appId", "allowedChannels", "gameVersions", "loaders", "feeds", "keywords", "count", "enabled"];
+  const allowed = ["id", "provider", "owner", "repo", "project", "modId", "gameVersion", "appId", "allowedChannels", "gameVersions", "loaders", "feeds", "keywords", "count", "enabled", "emitInitialEvents"];
   return Object.fromEntries(allowed.filter((key) => source[key] !== undefined).map((key) => [key, source[key]]));
 }
 
@@ -42,19 +42,22 @@ export class MonitorStateStore {
   }
 
   registerSource(source) {
+    const safeSource = safeSourceConfig(source);
+    const sourceHash = stableHash(safeSource);
     const existing = this.state.sources[source.id] ?? {};
+    const unchanged = existing.sourceHash === sourceHash;
     this.state.sources[source.id] = {
-      source: safeSourceConfig(source),
-      sourceHash: stableHash(safeSourceConfig(source)),
-      seenEventIds: Array.isArray(existing.seenEventIds) ? existing.seenEventIds : [],
-      etag: existing.etag ?? null,
-      lastModified: existing.lastModified ?? null,
-      lastCheckedAt: existing.lastCheckedAt ?? null,
-      lastSuccessAt: existing.lastSuccessAt ?? null,
-      consecutiveFailures: existing.consecutiveFailures ?? 0,
-      backoffUntil: existing.backoffUntil ?? null,
-      lastError: existing.lastError ?? null,
-      lastEventAt: existing.lastEventAt ?? null,
+      source: safeSource,
+      sourceHash,
+      seenEventIds: unchanged && Array.isArray(existing.seenEventIds) ? existing.seenEventIds : [],
+      etag: unchanged ? existing.etag ?? null : null,
+      lastModified: unchanged ? existing.lastModified ?? null : null,
+      lastCheckedAt: unchanged ? existing.lastCheckedAt ?? null : null,
+      lastSuccessAt: unchanged ? existing.lastSuccessAt ?? null : null,
+      consecutiveFailures: unchanged ? existing.consecutiveFailures ?? 0 : 0,
+      backoffUntil: unchanged ? existing.backoffUntil ?? null : null,
+      lastError: unchanged ? existing.lastError ?? null : null,
+      lastEventAt: unchanged ? existing.lastEventAt ?? null : null,
     };
     this.#persist();
     return this.state.sources[source.id];
@@ -62,14 +65,17 @@ export class MonitorStateStore {
 
   recordSuccess(source, result) {
     const entry = this.registerSource(source);
+    const initialBaseline = entry.lastSuccessAt === null && entry.seenEventIds.length === 0;
     const seen = new Set(entry.seenEventIds);
     const newEvents = [];
     let suppressedDuplicates = 0;
+    let suppressedHistorical = 0;
     for (const event of result.events ?? []) {
       if (seen.has(event.providerEventId)) suppressedDuplicates += 1;
       else {
         seen.add(event.providerEventId);
-        newEvents.push(event);
+        if (initialBaseline && !source.emitInitialEvents) suppressedHistorical += 1;
+        else newEvents.push(event);
       }
     }
     Object.assign(entry, {
@@ -81,10 +87,16 @@ export class MonitorStateStore {
       consecutiveFailures: 0,
       backoffUntil: null,
       lastError: null,
-      lastEventAt: newEvents[0]?.publishedAt ?? entry.lastEventAt,
+      lastEventAt: result.events?.[0]?.publishedAt ?? entry.lastEventAt,
     });
     this.#persist();
-    return { newEvents, suppressedDuplicates };
+    return {
+      newEvents,
+      suppressedDuplicates,
+      suppressedHistorical,
+      baselineEstablished: initialBaseline,
+      latestEvent: result.events?.[0] ?? null,
+    };
   }
 
   recordNotModified(source) {
