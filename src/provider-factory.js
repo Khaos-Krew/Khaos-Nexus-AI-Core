@@ -69,7 +69,8 @@ export class ProviderRouter {
   }
 
   async analyzeUpdates(comparison, request = {}) {
-    return this.#invoke("analyzeUpdates", [comparison, request]);
+    const correlatedRequest = { ...request, requestId: request.requestId ?? comparison?.requestId ?? null };
+    return this.#invoke("analyzeUpdates", [comparison, correlatedRequest]);
   }
 
   async #invoke(method, args) {
