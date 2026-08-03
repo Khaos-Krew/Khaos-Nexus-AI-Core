@@ -1,4 +1,4 @@
-import { createHash, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { AppError, validationError } from "./errors.js";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -56,6 +56,14 @@ export function sanitizeDiscordText(value) {
     .replace(/<@&?\d+>/g, "[mention]");
 }
 
+export function sanitizeExternalText(value, maxCharacters = 4_000) {
+  return redactText(value)
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, maxCharacters);
+}
+
 function digest(value) {
   return createHash("sha256").update(String(value)).digest();
 }
@@ -64,6 +72,12 @@ export function constantTimeEqual(left, right) {
   const leftDigest = digest(left);
   const rightDigest = digest(right);
   return timingSafeEqual(leftDigest, rightDigest);
+}
+
+export function verifyHmacSha256(payload, secret, signature) {
+  if (!secret || typeof signature !== "string" || !signature.startsWith("sha256=")) return false;
+  const expected = `sha256=${createHmac("sha256", secret).update(payload).digest("hex")}`;
+  return constantTimeEqual(expected, signature);
 }
 
 export function extractBearerToken(request) {
