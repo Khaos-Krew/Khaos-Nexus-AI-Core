@@ -78,7 +78,7 @@ export class ProviderCircuitBreaker {
 
   recordFailure(error) {
     if (error?.retryable !== true) {
-      if (this.state === "half_open") this.probeInFlight = false;
+      if (this.state === "half_open") this.#transition("closed", "non_retryable_probe_result");
       return false;
     }
     if (this.state === "half_open") {
