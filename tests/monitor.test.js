@@ -61,19 +61,14 @@ test("monitor polling deduplicates events, persists metadata, and isolates failu
   let calls = 0;
   const registry = { async fetch(source) {
     calls += 1;
-    if (source.id === "bad") {
-      const error = new Error("provider down");
-      error.code = "PROVIDER_TIMEOUT";
-      error.retryable = true;
-      throw error;
-    }
+    if (source.id === "bad") { const error = new Error("provider down"); error.code = "PROVIDER_TIMEOUT"; error.retryable = true; throw error; }
     return { etag: '"new"', lastModified: null, events: [{ providerEventId: "event:1", publishedAt: "2026-08-03T00:00:00Z" }] };
   }};
   const filePath = join(mkdtempSync(join(tmpdir(), "nexus-monitor-")), "state.json");
   const store = new MonitorStateStore({ filePath });
   const service = new MonitorService({ registry, stateStore: store });
   const sources = [
-    { id: "good", provider: "github-release", owner: "a", repo: "b" },
+    { id: "good", provider: "github-release", owner: "a", repo: "b", emitInitialEvents: true },
     { id: "bad", provider: "modrinth-project", project: "broken" },
   ];
   const first = await service.poll({ sources });
@@ -84,6 +79,21 @@ test("monitor polling deduplicates events, persists metadata, and isolates failu
   assert.equal(second.results[1].status, "failed");
   assert.ok(JSON.parse(readFileSync(filePath, "utf8")).sources.good);
   assert.equal(calls, 4);
+});
+
+test("new sources establish a quiet baseline and source changes reset state", async () => {
+  let eventId = "event:old";
+  const registry = { async fetch() { return { events: [{ providerEventId: eventId, publishedAt: "2026-08-03T00:00:00Z" }] }; } };
+  const store = new MonitorStateStore();
+  const service = new MonitorService({ registry, stateStore: store });
+  const initial = await service.poll({ sources: [{ id: "source", provider: "github-release", owner: "a", repo: "one" }] });
+  assert.equal(initial.newEventCount, 0);
+  assert.equal(initial.results[0].baselineEstablished, true);
+  assert.equal(initial.results[0].suppressedHistorical, 1);
+  eventId = "event:new";
+  const changed = await service.poll({ sources: [{ id: "source", provider: "github-release", owner: "a", repo: "two" }] });
+  assert.equal(changed.newEventCount, 0);
+  assert.equal(changed.results[0].baselineEstablished, true);
 });
 
 test("GitHub webhooks validate signatures, repository, delivery, and event deduplication", () => {
