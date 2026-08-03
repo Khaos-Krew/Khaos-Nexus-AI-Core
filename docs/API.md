@@ -18,6 +18,7 @@ All authenticated POST requests use the common envelope:
 
 - `GET /health`
 - `GET /api/v1/capabilities`
+- `GET /api/v1/provider/status`
 - `GET /api/v1/monitor/state`
 - `POST /api/v1/discord/assist`
 - `POST /api/v1/updates/compare`
@@ -46,6 +47,20 @@ When `AI_PROVIDER=openai-responses`, AI Core sends a stateless server-to-server 
 
 The provider output is parsed and locally validated before it becomes a neutral Nexus response. Refusals, incomplete output, malformed JSON, schema violations, oversized output, and unexpected tool calls fail safely.
 
+Every deterministic or external provider result then passes a capability-aware local policy gate. The gate validates:
+
+- allowed presentation type and severity;
+- required review behavior;
+- output length;
+- execution or completion claims;
+- D&D, Dungeon Master, or Co-DM leakage;
+- credential-like values;
+- hidden-instruction disclosures;
+- provider-generated links;
+- Discord mention neutralization.
+
+Policy failures return stable `AI_OUTPUT_*` codes with HTTP 422. They are non-retryable, do not affect the provider circuit breaker, and never activate deterministic fallback.
+
 The neutral response presentation may include safe provider metadata:
 
 ```json
@@ -67,9 +82,37 @@ The neutral response presentation may include safe provider metadata:
 }
 ```
 
-No provider key, request body, hidden instruction, or raw provider error is returned.
+No provider key, request body, hidden instruction, prompt, context, generated content, Discord identity, server identity, or raw provider error is returned through provider diagnostics.
 
-When `AI_PROVIDER_FALLBACK=deterministic`, only retryable network, timeout, rate-limit, or transient server failures may fall back. The response metadata records the source provider and reason code. Authentication failures, refusals, schema failures, unexpected tool output, incomplete responses, and budget exhaustion never silently fall back.
+When `AI_PROVIDER_FALLBACK=deterministic`, only retryable network, timeout, rate-limit, circuit-open, or transient server failures may fall back. The response metadata records the source provider and reason code. Authentication failures, refusals, policy/schema failures, unexpected tool output, incomplete responses, and budget exhaustion never silently fall back.
+
+## Provider status
+
+`GET /api/v1/provider/status` uses the existing service-token authentication model. It returns bounded operational aggregates:
+
+- provider and model;
+- readiness and fallback policy;
+- budget snapshot;
+- circuit state and transition count;
+- request, success, failure, fallback, and short-circuit counts;
+- average/max latency;
+- token totals;
+- bounded error-code and circuit-transition counters;
+- `contentStored:false` and `identitiesStored:false`.
+
+It never returns prompts, context, responses, request bodies, user/guild/channel/server IDs, provider keys, or raw provider errors.
+
+Public `GET /health` and authenticated capability discovery expose only a reduced provider-readiness summary without detailed telemetry.
+
+## Circuit breaker
+
+Only retryable primary-provider failures count toward the circuit threshold. The circuit uses three states:
+
+- `closed`: requests call the primary provider;
+- `open`: requests fail fast or use explicitly enabled deterministic fallback;
+- `half_open`: one probe is allowed after cooldown.
+
+A successful probe closes the circuit. A retryable failed probe reopens it. A non-retryable provider or policy result does not count as a connectivity failure.
 
 ## Monitor poll
 

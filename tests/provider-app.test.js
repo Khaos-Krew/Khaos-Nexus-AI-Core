@@ -4,7 +4,12 @@ import test from "node:test";
 import { createApp } from "../src/app.js";
 import { createProviderFromEnvironment } from "../src/provider-factory.js";
 
-function providerResponse() {
+function providerResponse({
+  subsystem = "General Assistance",
+  type = "message",
+  severity = "information",
+  reviewRequired = false,
+} = {}) {
   return new Response(JSON.stringify({
     id: "resp_app",
     status: "completed",
@@ -16,9 +21,9 @@ function providerResponse() {
       content: [{
         type: "output_text",
         text: JSON.stringify({
-          subsystem: "General Assistance",
+          subsystem,
           content: "Advisory response.",
-          presentation: { type: "message", severity: "information", reviewRequired: false },
+          presentation: { type, severity, reviewRequired },
         }),
       }],
     }],
@@ -70,7 +75,10 @@ test("update analysis preserves the original Khaos request ID", async () => {
     env: { AI_PROVIDER: "openai-responses", OPENAI_API_KEY: "secret", OPENAI_MODEL: "pinned-test-model", OPENAI_RETRIES: "0" },
     fetchImpl: async (_url, options) => {
       clientRequestId = options.headers["X-Client-Request-Id"];
-      return providerResponse();
+      return providerResponse({
+        subsystem: "Game & Mod Update Monitor",
+        type: "update_summary",
+      });
     },
   });
   const requestId = randomUUID();

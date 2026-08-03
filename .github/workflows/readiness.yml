@@ -1,0 +1,28 @@
+name: Provider Readiness
+
+on:
+  pull_request:
+  push:
+    branches: [main, "agent/**"]
+
+permissions:
+  contents: read
+
+jobs:
+  readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install locked package
+        run: npm install --ignore-scripts
+      - name: Syntax validation
+        run: npm run build
+      - name: Unit tests
+        run: npm test
+      - name: Offline provider evaluations
+        run: npm run eval
