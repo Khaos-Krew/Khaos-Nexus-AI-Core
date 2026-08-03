@@ -6,7 +6,7 @@ function sourceResultBase(source) {
   return { sourceId: source.id, provider: source.provider };
 }
 
-function normalizeGithubWebhookEvent(payload) {
+function webhookEvent(payload) {
   const release = payload.release;
   return {
     providerEventId: `github-release:${release.id}`,
@@ -60,6 +60,9 @@ export class MonitorService {
           status: "modified",
           newEvents: recorded.newEvents,
           suppressedDuplicates: recorded.suppressedDuplicates,
+          suppressedHistorical: recorded.suppressedHistorical,
+          baselineEstablished: recorded.baselineEstablished,
+          latestEvent: recorded.latestEvent,
           fetchedEventCount: fetched.events?.length ?? 0,
         });
       } catch (error) {
@@ -93,22 +96,17 @@ export class MonitorService {
     if (!verifyHmacSha256(rawBody, this.githubWebhookSecret, signature)) {
       throw new AppError("GitHub webhook signature is invalid", { status: 403, code: "INVALID_WEBHOOK_SIGNATURE" });
     }
-
     const state = this.stateStore.getSource(sourceId);
     if (!state || state.source.provider !== "github-release") {
       throw new AppError("Webhook source is not registered", { status: 404, code: "WEBHOOK_SOURCE_NOT_FOUND" });
     }
-    if (this.stateStore.hasWebhookDelivery(deliveryId)) {
+    if (this.stateStore.hasWebhookDelivery?.(deliveryId)) {
       return { status: "duplicate", deliveryId, newEvents: [] };
     }
     if (eventName !== "release") return { status: "ignored", reason: "unsupported-event", newEvents: [] };
-
     let payload;
-    try {
-      payload = JSON.parse(rawBody.toString("utf8"));
-    } catch {
-      throw new AppError("Invalid webhook JSON", { status: 400, code: "INVALID_JSON" });
-    }
+    try { payload = JSON.parse(rawBody.toString("utf8")); }
+    catch { throw new AppError("Invalid webhook JSON", { status: 400, code: "INVALID_JSON" }); }
     const action = payload.action;
     if (!payload.release || payload.release.draft || !["published", "released"].includes(action)) {
       return { status: "ignored", reason: "release-not-published", newEvents: [] };
@@ -118,13 +116,12 @@ export class MonitorService {
     if (repository !== expectedRepository) {
       throw new AppError("Webhook repository does not match the registered source", { status: 409, code: "WEBHOOK_REPOSITORY_MISMATCH" });
     }
-
-    const event = normalizeGithubWebhookEvent(payload);
+    const event = webhookEvent(payload);
     if (!state.source.allowedChannels.includes(event.releaseChannel)) {
       return { status: "ignored", reason: "release-channel-policy", newEvents: [] };
     }
     this.stateStore.recordWebhookDelivery(deliveryId);
-    const recorded = this.stateStore.recordSuccess(state.source, { events: [event] });
+    const recorded = this.stateStore.recordSuccess({ ...state.source, emitInitialEvents: true }, { events: [event] });
     return {
       status: recorded.newEvents.length ? "accepted" : "duplicate-event",
       deliveryId,
