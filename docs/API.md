@@ -29,6 +29,48 @@ All authenticated POST requests use the common envelope:
 - `POST /api/v1/incidents/summarize`
 - `POST /api/v1/webhooks/github?sourceId=<registered-source-id>`
 
+## Generation provider behavior
+
+The public AI Core API does not accept provider credentials, provider base URLs, tool definitions, model overrides, conversation IDs, previous response IDs, or storage controls. These are server-owned configuration.
+
+When `AI_PROVIDER=openai-responses`, AI Core sends a stateless server-to-server request to the fixed OpenAI Responses endpoint with:
+
+- the same Khaos `requestId` as `X-Client-Request-Id`;
+- the server-configured model;
+- `store: false`;
+- `background: false`;
+- strict `json_schema` text output;
+- `tools: []` and `tool_choice: none`;
+- no conversation or previous-response state;
+- bounded output tokens, timeout, retries, and response bytes.
+
+The provider output is parsed and locally validated before it becomes a neutral Nexus response. Refusals, incomplete output, malformed JSON, schema violations, oversized output, and unexpected tool calls fail safely.
+
+The neutral response presentation may include safe provider metadata:
+
+```json
+{
+  "providerMetadata": {
+    "provider": "openai-responses",
+    "model": "configured-model",
+    "providerRequestId": "redacted-provider-request-id",
+    "latencyMs": 1234,
+    "usage": {
+      "inputTokens": 100,
+      "outputTokens": 50,
+      "totalTokens": 150
+    },
+    "store": false,
+    "toolsUsed": 0,
+    "fallback": null
+  }
+}
+```
+
+No provider key, request body, hidden instruction, or raw provider error is returned.
+
+When `AI_PROVIDER_FALLBACK=deterministic`, only retryable network, timeout, rate-limit, or transient server failures may fall back. The response metadata records the source provider and reason code. Authentication failures, refusals, schema failures, unexpected tool output, incomplete responses, and budget exhaustion never silently fall back.
+
 ## Monitor poll
 
 Use capability `nexus.update.poll` and provide one or more strict source definitions. The service constructs provider URLs internally; callers cannot provide arbitrary URLs or credentials. Polling is triggered by Khaos Nexus and its shared scheduler. AI Core has no internal recurring timer.
@@ -50,61 +92,6 @@ The request must provide:
 - local typed `resources` supplied by Khaos Nexus;
 - explicit `bindings` from source/event to resource references;
 - optional caller-authorized `subscriptions`.
-
-```json
-{
-  "apiVersion": "1",
-  "requestId": "00000000-0000-4000-8000-000000000000",
-  "targetService": "nexus-ai-core",
-  "routingDepth": 0,
-  "capability": "nexus.update.evaluate",
-  "events": [
-    {
-      "sourceId": "ark-release",
-      "providerEventId": "release:101",
-      "provider": "github-release",
-      "eventType": "release",
-      "version": "101",
-      "releaseChannel": "stable",
-      "title": "ARK update",
-      "changelog": "Crash and performance fixes",
-      "authoritative": true
-    }
-  ],
-  "resources": [
-    {
-      "id": "server:rag:game",
-      "name": "Ragnarok Server",
-      "publicName": "Ragnarok",
-      "type": "game",
-      "gameKey": "ark",
-      "installedVersion": "100",
-      "runningVersion": "100",
-      "availableVersion": "100",
-      "allowedChannels": ["stable"]
-    }
-  ],
-  "bindings": [
-    {
-      "sourceId": "ark-release",
-      "resourceRefs": ["server:rag:game"]
-    }
-  ],
-  "subscriptions": [
-    {
-      "id": "staff-updates",
-      "authorized": true,
-      "minimumSeverity": "attention",
-      "gameKeys": ["ark"],
-      "destination": {
-        "id": "discord-channel-reference",
-        "type": "channel",
-        "visibility": "private"
-      }
-    }
-  ]
-}
-```
 
 The response includes deterministic alerts, confidence and severity, readiness findings, stable alert keys, caller-authorized delivery proposals, quiet-hour advice, public-safe projections, and local action proposals. It does not send Discord messages or grant permissions.
 
