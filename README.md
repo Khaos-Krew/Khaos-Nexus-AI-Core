@@ -7,6 +7,7 @@ General-purpose AI orchestration, Discord-facing contracts, game/mod update inte
 - **Khaos Nexus desktop and Nexus Bot are authoritative.** They own Discord connections, permissions, credentials, installed-version inventory, game adapters, confirmations, subscriptions, the shared scheduler, persistence, update execution, and audits.
 - **D&D AI stays isolated.** `Khaos-Krew/Khaos-Nexus-AI` owns D&D campaign intelligence. AI Core rejects `dnd.*` and never calls or forwards to D&D AI.
 - **AI Core never executes operations.** It returns information, neutral Discord presentation models, provider update events, deterministic impact findings, delivery proposals, digests, and maintenance proposals.
+- **Provider credentials stay server-side.** Khaos Nexus desktop never stores or submits the general AI provider key.
 
 ## Current capabilities
 
@@ -15,6 +16,9 @@ General-purpose AI orchestration, Discord-facing contracts, game/mod update inte
 - Request IDs, idempotency, rate limiting, and bounded bodies.
 - Protected credential-field rejection and output redaction.
 - Discord mention safety and neutral response contracts.
+- Deterministic local provider enabled by default.
+- Optional verified OpenAI Responses provider using `store:false`, strict JSON Schema, no tools, no background mode, no provider conversation state, and pinned caller configuration.
+- Bounded provider timeout, response size, retries, daily request/token budgets, usage metadata, and opt-in visible deterministic fallback for retryable failures.
 - Game/mod version comparison, dependencies, release channels, platform readiness, and cluster drift.
 - Provider-backed update ingestion for GitHub releases, Modrinth project versions, CurseForge files, and Steam app news.
 - ETag and Last-Modified conditional polling, source backoff, failure isolation, event deduplication, and optional metadata persistence.
@@ -24,10 +28,30 @@ General-purpose AI orchestration, Discord-facing contracts, game/mod update inte
 - Caller-authorized subscription matching, quiet-hour delivery advice, stable alert/delivery keys, and public-safe projections.
 - Discord-safe update alerts and grouped public or private digests with empty allowed mentions.
 - Update impact summaries and blocked or proposed maintenance plans.
-- Deterministic local provider and fixture-based tests.
-- Node.js 22 tests and GitHub Actions CI.
+- Fixture-based tests and GitHub Actions CI.
 
 Steam news is informational only. Khaos Nexus game adapters remain authoritative for installed and running dedicated-server builds. AI Core does not grant Discord permissions or store subscriptions; it only evaluates caller-provided authorized destinations.
+
+## Provider selection
+
+Deterministic behavior is the default:
+
+```text
+AI_PROVIDER=deterministic-local
+```
+
+To enable the verified OpenAI Responses adapter, configure the AI Core service environment—not the desktop renderer or Nexus Bot bootstrap:
+
+```text
+AI_PROVIDER=openai-responses
+OPENAI_API_KEY=<server-side key>
+OPENAI_MODEL=<explicit model or pinned snapshot>
+AI_PROVIDER_FALLBACK=disabled
+```
+
+`AI_PROVIDER_FALLBACK=deterministic` permits visible fallback only for retryable provider outages. Authentication failures, refusals, schema violations, tool output, incomplete responses, and budget exhaustion do not silently fall back.
+
+The adapter always uses the fixed `https://api.openai.com/v1/responses` endpoint, `store:false`, strict structured output, `tools:[]`, and no conversation state. Model aliases and snapshots are selected explicitly through `OPENAI_MODEL`; AI Core does not silently change the configured model.
 
 ## Run
 
