@@ -2,7 +2,7 @@
 
 ## Authority model
 
-Khaos Nexus AI Core is a non-D&D intelligence service. It interprets bounded requests, ingests allowlisted public update metadata, compares installed-version snapshots supplied by Khaos Nexus, creates Discord-safe neutral responses, and prepares proposals. It never connects to Discord or game servers and never executes operational actions.
+Khaos Nexus AI Core is a non-D&D intelligence service. It interprets bounded requests, ingests allowlisted public update metadata, evaluates explicit local resource bindings supplied by Khaos Nexus, creates Discord-safe neutral responses, and prepares proposals. It never connects to Discord or game servers and never executes operational actions.
 
 ```text
 Khaos Nexus Desktop / Nexus Bot
@@ -13,7 +13,7 @@ Khaos Nexus Shared Scheduler
   └── explicit monitor poll -> AI Core provider adapters
 ```
 
-The desktop and supervised Nexus Bot runtime remain authoritative for authentication, Discord permissions, context selection, confirmations, schedules, installed-version inventory, game adapters, update execution, moderation, persistence, and audits.
+The desktop and supervised Nexus Bot runtime remain authoritative for authentication, Discord permissions, context selection, confirmations, schedules, subscriptions, installed-version inventory, game adapters, update execution, moderation, persistence, and audits.
 
 ## D&D isolation
 
@@ -21,7 +21,7 @@ The desktop and supervised Nexus Bot runtime remain authoritative for authentica
 
 ## Discord boundary
 
-AI Core returns a neutral presentation model. It does not return raw Discord REST payloads. Nexus Bot is responsible for validating embed/component limits, choosing ephemeral or public delivery, rechecking permissions, applying allowed-mention restrictions, and sending the final response.
+AI Core returns neutral presentation models, alert proposals, delivery proposals, and digests. It does not return raw Discord REST payloads and does not decide Discord authorization. Nexus Bot is responsible for validating embed/component limits, choosing ephemeral or public delivery, rechecking permissions, applying allowed-mention restrictions, deduplicating actual deliveries, and sending the final response.
 
 ## Update ingestion boundary
 
@@ -32,13 +32,34 @@ AI Core supports strict provider source definitions for:
 - CurseForge mod files;
 - Steam app news.
 
-Provider URLs are constructed internally and limited to approved HTTPS origins. Optional provider credentials are read only from server-side environment configuration. The service supports bounded responses, conditional requests, retry/backoff, normalized event IDs, source failure isolation, and deduplication.
+Provider URLs are constructed internally and limited to approved HTTPS origins. Optional provider credentials are read only from server-side environment configuration. The service supports bounded responses, conditional requests, retry/backoff, normalized event IDs, source failure isolation, quiet initial baselines, and deduplication.
 
 Steam news is intentionally labeled informational and cannot confirm a dedicated-server build. Khaos Nexus game and hosting adapters remain authoritative for installed, running, and remotely available server builds.
 
+## Impact evaluation boundary
+
+Operational impact requires explicit typed bindings from a provider source or event to Khaos Nexus resource references. AI Core does not use fuzzy names, natural-language guesses, or discovery outside caller-provided resources to select affected production systems.
+
+The evaluator combines authoritative event metadata with local resource state to classify:
+
+- update availability;
+- pinned or disallowed release channels;
+- missing dependencies or platforms;
+- installed/running drift;
+- cluster drift;
+- severity, confidence, categories, and maintenance readiness.
+
+Non-authoritative events remain informational. A Steam news item cannot independently produce a ready maintenance action.
+
+## Subscription and delivery boundary
+
+Subscriptions are supplied per request by Khaos Nexus and must already be marked authorized by the caller. AI Core only matches filters and creates stable delivery proposals. It cannot create subscriptions, grant permission, discover channels, broaden visibility, or send messages.
+
+Private projections may include typed local resource references and readiness reasons. Public projections contain public labels and counts only. Both use empty allowed mentions. Quiet-hour evaluation is deterministic advice; the shared scheduler owns actual deferment and delivery timing.
+
 ## Monitor state
 
-The monitor store contains only source definitions, conditional-request metadata, health state, event identifiers, and webhook delivery identifiers. It does not contain provider credentials, download payloads, Discord credentials, RCON information, or raw private webhook bodies. File persistence is optional; without `MONITOR_STATE_FILE`, state is process-local.
+The monitor store contains only source definitions, conditional-request metadata, health state, event identifiers, and webhook delivery identifiers. It does not contain provider credentials, download payloads, Discord credentials, RCON information, raw private webhook bodies, subscription permissions, or campaign data. File persistence is optional; without `MONITOR_STATE_FILE`, state is process-local.
 
 ## Webhook boundary
 
@@ -46,4 +67,4 @@ GitHub release webhooks are disabled by default. When enabled, AI Core validates
 
 ## Execution boundary
 
-Downloads, file changes, server saves, backups, stops, updates, starts, health verification, staged rollout, and rollback remain the responsibility of registered Khaos Nexus modules and the shared scheduler.
+Downloads, file changes, server saves, backups, stops, updates, starts, health verification, staged rollout, rollback, Discord delivery, acknowledgement, ignore/pin changes, and subscription persistence remain the responsibility of registered Khaos Nexus modules and the shared scheduler.

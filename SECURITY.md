@@ -20,6 +20,18 @@
 - ETag and Last-Modified metadata may be retained, but provider credentials and raw response bodies are not persisted.
 - Steam news is informational and cannot authorize or confirm an update operation.
 
+## Impact and notification protections
+
+- Operational impact requires explicit typed source-to-resource bindings; fuzzy matching is prohibited.
+- AI Core does not discover Discord destinations or evaluate whether a user has permission.
+- Only caller-provided subscriptions marked `authorized: true` are eligible for delivery proposals.
+- Subscription matching cannot grant access or broaden visibility.
+- Public projections exclude local resource references, internal blockers, private scope identifiers, credentials, addresses, and player identifiers.
+- Discord alert and digest models use empty allowed mentions and bounded sanitized text.
+- Stable alert and delivery keys support local deduplication without storing prompts or message content.
+- Quiet-hour output is scheduling advice only; Khaos Nexus remains responsible for timing and urgent overrides.
+- Every maintenance, ignore, pin, acknowledgement, or subscription action remains a proposal for local permission validation and confirmation.
+
 ## Webhook protections
 
 GitHub webhook processing requires:
@@ -35,8 +47,8 @@ The raw webhook body is validated before parsing and is not stored.
 
 ## Built-in protections
 
-The service uses bounded JSON bodies, constant-time token and signature comparison, forbidden credential-field rejection, token-like text redaction, external-text sanitization, Discord mention neutralization, explicit target-service routing, D&D namespace isolation, routing-loop prevention, rate limiting, idempotency, source backoff, event deduplication, no-store responses, and restrictive response headers.
+The service uses bounded JSON bodies, constant-time token and signature comparison, forbidden credential-field rejection, token-like text redaction, external-text sanitization, Discord mention neutralization, explicit target-service routing, D&D namespace isolation, routing-loop prevention, rate limiting, idempotency, source backoff, event deduplication, explicit impact bindings, public/private projections, no-store responses, and restrictive response headers.
 
 ## Reporting
 
-Report vulnerabilities privately to the Khaos Krew repository owner. Do not include live credentials, webhook secrets, private payloads, or sensitive server details in a public issue.
+Report vulnerabilities privately to the Khaos Krew repository owner. Do not include live credentials, webhook secrets, private payloads, Discord identifiers, or sensitive server details in a public issue.

@@ -37,12 +37,15 @@ function normalizeResource(resource, index) {
   }
   const id = String(resource.id ?? "").trim();
   const name = String(resource.name ?? "").trim();
+  const publicName = String(resource.publicName ?? name).trim();
+  const gameKey = String(resource.gameKey ?? "").trim() || null;
   const type = String(resource.type ?? "").trim();
   const installedVersion = String(resource.installedVersion ?? "").trim();
   const availableVersion = String(resource.availableVersion ?? "").trim();
   const releaseChannel = String(resource.releaseChannel ?? "stable").trim().toLowerCase();
   if (!id) throw validationError("resource id is required", `resources[${index}].id`);
   if (!name) throw validationError("resource name is required", `resources[${index}].name`);
+  if (!publicName) throw validationError("publicName is required when supplied", `resources[${index}].publicName`);
   if (!RESOURCE_TYPES.has(type)) throw validationError("Unsupported resource type", `resources[${index}].type`);
   if (!installedVersion) throw validationError("installedVersion is required", `resources[${index}].installedVersion`);
   if (!availableVersion) throw validationError("availableVersion is required", `resources[${index}].availableVersion`);
@@ -51,6 +54,8 @@ function normalizeResource(resource, index) {
   return {
     id,
     name,
+    publicName,
+    gameKey,
     type,
     scopeId: String(resource.scopeId ?? "").trim() || null,
     clusterGroup: String(resource.clusterGroup ?? "").trim() || null,

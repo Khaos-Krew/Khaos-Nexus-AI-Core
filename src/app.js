@@ -12,6 +12,7 @@ import { createNeutralResponse, validateEnvelope, visibilityFrom } from "./contr
 import { createMaintenancePlan } from "./maintenance.js";
 import { DeterministicProvider } from "./provider.js";
 import { authenticateRequest, stableHash } from "./security.js";
+import { createUpdateDigest, evaluateUpdateImpact } from "./update-intelligence.js";
 import { compareUpdateResources } from "./updates.js";
 
 function sendJson(response, status, body, origin) {
@@ -208,6 +209,8 @@ export function createApp({
         ["/api/v1/discord/assist", new Set(["nexus.help", "nexus.discord.assist", "nexus.discord.draft", "nexus.server.diagnose", "nexus.incident.summarize"])],
         ["/api/v1/updates/compare", new Set(["nexus.update.compare"])],
         ["/api/v1/updates/analyze", new Set(["nexus.update.analyze"])],
+        ["/api/v1/updates/evaluate", new Set(["nexus.update.evaluate"])],
+        ["/api/v1/updates/digest", new Set(["nexus.update.digest"])],
         ["/api/v1/monitor/poll", new Set(["nexus.update.poll"])],
         ["/api/v1/maintenance/plans", new Set(["nexus.maintenance.propose"])],
         ["/api/v1/incidents/summarize", new Set(["nexus.incident.summarize"])],
@@ -265,6 +268,30 @@ export function createApp({
           presentation: generated.presentation,
           meta: { provider: provider.name, model: provider.model, comparison },
         });
+      } else if (pathname === "/api/v1/updates/evaluate") {
+        result = {
+          apiVersion: API_VERSION,
+          requestId: body.requestId,
+          service: SERVICE_NAME,
+          capability: body.capability,
+          evaluation: evaluateUpdateImpact(body),
+          execution: { performed: false, authority: "Khaos Nexus" },
+        };
+      } else if (pathname === "/api/v1/updates/digest") {
+        const evaluation = evaluateUpdateImpact(body);
+        result = {
+          apiVersion: API_VERSION,
+          requestId: body.requestId,
+          service: SERVICE_NAME,
+          capability: body.capability,
+          digest: createUpdateDigest({ ...body, evaluation }),
+          evaluationSummary: {
+            alertCount: evaluation.alertCount,
+            deliveryCount: evaluation.deliveryCount,
+            highestSeverity: evaluation.highestSeverity,
+          },
+          execution: { performed: false, authority: "Khaos Nexus" },
+        };
       } else if (pathname === "/api/v1/monitor/poll") {
         if (!monitorService) throw new AppError("Update monitor is not configured", { status: 503, code: "MONITOR_NOT_CONFIGURED" });
         result = {
