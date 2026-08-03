@@ -1,6 +1,6 @@
 export const SERVICE_NAME = "khaos-nexus-ai-core";
 export const API_VERSION = "1";
-export const SERVICE_VERSION = "0.1.0";
+export const SERVICE_VERSION = "0.2.0";
 export const TARGET_SERVICE = "nexus-ai-core";
 export const MAX_BODY_BYTES = 256 * 1024;
 export const MAX_PROMPT_CHARACTERS = 12_000;
@@ -13,6 +13,8 @@ export const CAPABILITIES = Object.freeze([
   "nexus.server.diagnose",
   "nexus.update.compare",
   "nexus.update.analyze",
+  "nexus.update.poll",
+  "nexus.update.state",
   "nexus.maintenance.propose",
   "nexus.incident.summarize",
 ]);
