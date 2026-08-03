@@ -4,9 +4,9 @@ General-purpose AI orchestration, Discord-facing contracts, game/mod update inte
 
 ## Boundaries
 
-- **Khaos Nexus desktop and Nexus Bot are authoritative.** They own Discord connections, permissions, credentials, installed-version inventory, game adapters, confirmations, the shared scheduler, persistence, update execution, and audits.
+- **Khaos Nexus desktop and Nexus Bot are authoritative.** They own Discord connections, permissions, credentials, installed-version inventory, game adapters, confirmations, subscriptions, the shared scheduler, persistence, update execution, and audits.
 - **D&D AI stays isolated.** `Khaos-Krew/Khaos-Nexus-AI` owns D&D campaign intelligence. AI Core rejects `dnd.*` and never calls or forwards to D&D AI.
-- **AI Core never executes operations.** It returns information, neutral Discord presentation models, provider update events, normalized comparisons, and maintenance proposals.
+- **AI Core never executes operations.** It returns information, neutral Discord presentation models, provider update events, deterministic impact findings, delivery proposals, digests, and maintenance proposals.
 
 ## Current capabilities
 
@@ -19,11 +19,15 @@ General-purpose AI orchestration, Discord-facing contracts, game/mod update inte
 - Provider-backed update ingestion for GitHub releases, Modrinth project versions, CurseForge files, and Steam app news.
 - ETag and Last-Modified conditional polling, source backoff, failure isolation, event deduplication, and optional metadata persistence.
 - Optional GitHub release webhooks with HMAC-SHA256 signature validation and delivery deduplication.
+- Explicit source-to-resource impact evaluation with confirmed/likely/possible/unknown confidence.
+- Deterministic informational, attention, urgent, and critical severity classification.
+- Caller-authorized subscription matching, quiet-hour delivery advice, stable alert/delivery keys, and public-safe projections.
+- Discord-safe update alerts and grouped public or private digests with empty allowed mentions.
 - Update impact summaries and blocked or proposed maintenance plans.
 - Deterministic local provider and fixture-based tests.
 - Node.js 22 tests and GitHub Actions CI.
 
-Steam news is informational only. Khaos Nexus game adapters remain authoritative for installed and running dedicated-server builds.
+Steam news is informational only. Khaos Nexus game adapters remain authoritative for installed and running dedicated-server builds. AI Core does not grant Discord permissions or store subscriptions; it only evaluates caller-provided authorized destinations.
 
 ## Run
 
@@ -44,6 +48,8 @@ GET  /api/v1/monitor/state
 POST /api/v1/discord/assist
 POST /api/v1/updates/compare
 POST /api/v1/updates/analyze
+POST /api/v1/updates/evaluate
+POST /api/v1/updates/digest
 POST /api/v1/monitor/poll
 POST /api/v1/maintenance/plans
 POST /api/v1/incidents/summarize
