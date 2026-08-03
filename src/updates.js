@@ -156,6 +156,7 @@ export function compareUpdateResources(input) {
   const blockers = resources.flatMap((resource) => resource.blockers.map((message) => ({ resourceId: resource.id, message })));
 
   return {
+    requestId: typeof input.requestId === "string" ? input.requestId : null,
     checkedAt: new Date().toISOString(),
     resources,
     clusterFindings: clusters,
