@@ -3,13 +3,38 @@
 ## Security boundary
 
 - Keep the service loopback-only by default.
-- Configure a strong `NEXUS_AI_CORE_SERVICE_TOKEN` before non-local use.
-- Require HTTPS for any non-loopback deployment.
+- Require a high-entropy `NEXUS_AI_CORE_SERVICE_TOKEN` for desktop sidecar mode.
+- Require HTTPS for any non-loopback standalone deployment.
 - Never submit Discord bot tokens, provider keys, RCON passwords, hosting credentials, private keys, or connection strings in request bodies.
 - Keep `OPENAI_API_KEY`, `GITHUB_API_TOKEN`, `CURSEFORGE_API_KEY`, and `GITHUB_WEBHOOK_SECRET` server-side only.
 - Never expose AI Core directly as the Discord interaction authority.
 - Never grant AI Core direct server, database, scheduler, game-hosting, RCON, or Discord credentials.
-- Keep GitHub webhooks disabled unless an authenticated webhook path is explicitly needed.
+- Keep GitHub webhooks disabled unless an authenticated standalone webhook path is explicitly needed. Sidecar mode always disables webhook intake.
+
+## Desktop sidecar protections
+
+- Sidecar configuration accepts only `127.0.0.1` or `::1`.
+- Port `0` is supported so the operating system selects a free local port; the desktop must use the authenticated readiness record rather than assume a port.
+- Missing, weak, whitespace-containing, or low-diversity service tokens are rejected before listening.
+- Startup nonces are bounded and restricted to a safe character set.
+- Ready-file and monitor-state paths must be absolute; the ready file is written atomically with private permissions where supported.
+- Readiness is emitted only after the listener accepts requests.
+- Readiness and diagnostics exclude service tokens, provider/source credentials, prompts, responses, request bodies, Discord IDs, server IDs, player IDs, and campaign data.
+- GitHub webhook intake is disabled in sidecar mode even when standalone webhook environment variables exist.
+- Shutdown is available through IPC, `SIGINT`, and `SIGTERM`; there is no HTTP shutdown endpoint.
+- IPC disconnect and optional parent-PID loss trigger bounded sidecar shutdown.
+- The sidecar removes its readiness file during shutdown.
+- Stable exit codes distinguish unsafe configuration, startup failure, parent loss, and forced shutdown without exposing raw errors.
+- Khaos Nexus remains responsible for protected token storage, process restart policy, capability negotiation, local permissions, and audit events.
+
+## Bundle and artifact protections
+
+- `npm run bundle:sidecar` constructs the bundle from an explicit allowlist of runtime source, contracts, package metadata, and operator/security documentation.
+- Environment files, monitor state, tests, logs, Git metadata, `node_modules`, and generated user data are excluded.
+- `integrity.json` records SHA-256 and byte length for every included file.
+- `npm run verify:sidecar` rejects missing, changed, or unexpected files, forbidden paths, version drift, contract drift, runtime dependencies, and automatic-publication settings.
+- The Windows workflow uploads an unpublished short-retention artifact only after full Linux and Windows validation.
+- Bundle creation does not create a release, tag, updater record, public deployment, or embedded credential.
 
 ## Generation provider protections
 
@@ -53,13 +78,14 @@
 
 Telemetry never stores prompts, context, responses, request bodies, provider keys, raw provider errors, Discord IDs, user IDs, guild IDs, channel IDs, server IDs, player IDs, or campaign content. Public health receives only a reduced readiness projection without detailed telemetry.
 
-## Evaluation protections
+## Evaluation and contract protections
 
 - Normal CI runs `npm run eval` with the deterministic local provider only.
 - The offline fixture corpus contains no real credentials, production prompts, private server data, Discord identities, or campaign content.
 - Required fixtures cover execution claims, D&D leakage, internal-instruction disclosure, credential-like input, unsafe mentions, schema and presentation requirements, and repeatability.
-- CI fails below the configured pass threshold.
-- No external provider key is required or read by the normal evaluation command.
+- `npm run contracts` verifies service and sidecar manifests, package exports, client methods, transport rules, package versions, authority boundaries, and D&D isolation.
+- CI fails below the evaluation threshold or when any contract/bundle file drifts.
+- No external provider key is required or read by normal evaluation, contract, bundle, or integrity checks.
 
 ## Provider-source protections
 
@@ -69,6 +95,7 @@ Telemetry never stores prompts, context, responses, request bodies, provider key
 - Requests use bounded timeouts, retries, response sizes, and redacted failure messages.
 - ETag and Last-Modified metadata may be retained, but provider credentials and raw response bodies are not persisted.
 - Steam news is informational and cannot authorize or confirm an update operation.
+- The shared Khaos Nexus scheduler owns polling cadence; the sidecar creates no timer.
 
 ## Impact and notification protections
 
@@ -84,7 +111,7 @@ Telemetry never stores prompts, context, responses, request bodies, provider key
 
 ## Webhook protections
 
-GitHub webhook processing requires:
+Standalone GitHub webhook processing requires:
 
 - `GITHUB_WEBHOOKS_ENABLED=true`;
 - a high-entropy server-side `GITHUB_WEBHOOK_SECRET`;
@@ -93,12 +120,12 @@ GitHub webhook processing requires:
 - a unique `X-GitHub-Delivery` value;
 - a supported published release event.
 
-The raw webhook body is validated before parsing and is not stored.
+The raw webhook body is validated before parsing and is not stored. Desktop sidecar mode always disables this path.
 
 ## Built-in protections
 
-The service uses bounded JSON bodies, constant-time token and signature comparison, forbidden credential-field rejection, token-like text redaction, external-text sanitization, Discord mention neutralization, explicit target-service routing, D&D namespace isolation, routing-loop prevention, rate limiting, idempotency, output policy validation, provider budgets, circuit breaking, redacted telemetry, provider fallback policy, source backoff, event deduplication, explicit impact bindings, public/private projections, no-store responses, and restrictive response headers.
+The service uses bounded JSON bodies, constant-time token and signature comparison, forbidden credential-field rejection, token-like text redaction, external-text sanitization, Discord mention neutralization, explicit target-service routing, D&D namespace isolation, routing-loop prevention, rate limiting, idempotency, output policy validation, provider budgets, circuit breaking, redacted telemetry, provider fallback policy, source backoff, event deduplication, explicit impact bindings, public/private projections, supervised sidecar lifecycle, manifest synchronization, SHA-256 bundle integrity, no-store responses, and restrictive response headers.
 
 ## Reporting
 
-Report vulnerabilities privately to the Khaos Krew repository owner. Do not include live credentials, provider keys, webhook secrets, private payloads, Discord identifiers, or sensitive server details in a public issue.
+Report vulnerabilities privately to the Khaos Krew repository owner. Do not include live credentials, provider keys, webhook secrets, private payloads, readiness files, Discord identifiers, or sensitive server details in a public issue.
