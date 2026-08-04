@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://khaos-krew.github.io/khaos-nexus-ai-core/contracts/v1/schema.json",
+  "title": "Khaos Nexus AI Core API v1",
+  "type": "object",
+  "$defs": {
+    "requestEnvelope": {
+      "type": "object",
+      "required": ["apiVersion", "requestId", "targetService", "routingDepth", "capability"],
+      "properties": {
+        "apiVersion": { "const": "1" },
+        "requestId": { "type": "string", "format": "uuid" },
+        "targetService": { "const": "nexus-ai-core" },
+        "routingDepth": { "const": 0 },
+        "capability": { "type": "string", "pattern": "^nexus\\." }
+      }
+    },
+    "providerMetadata": {
+      "type": "object",
+      "required": ["provider", "model", "latencyMs", "usage", "store", "toolsUsed"],
+      "properties": {
+        "provider": { "type": "string" },
+        "model": { "type": "string" },
+        "providerRequestId": { "type": ["string", "null"] },
+        "latencyMs": { "type": "integer", "minimum": 0 },
+        "usage": {
+          "type": "object",
+          "required": ["inputTokens", "outputTokens", "totalTokens"],
+          "properties": {
+            "inputTokens": { "type": "integer", "minimum": 0 },
+            "outputTokens": { "type": "integer", "minimum": 0 },
+            "totalTokens": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "store": { "const": false },
+        "toolsUsed": { "const": 0 },
+        "fallback": { "type": ["object", "null"] }
+      }
+    },
+    "neutralResponse": {
+      "type": "object",
+      "required": ["apiVersion", "requestId", "service", "capability", "attribution", "response"],
+      "properties": {
+        "apiVersion": { "const": "1" },
+        "requestId": { "type": "string", "format": "uuid" },
+        "service": { "const": "khaos-nexus-ai-core" },
+        "capability": { "type": "string", "pattern": "^nexus\\." },
+        "attribution": { "type": "object" },
+        "response": {
+          "type": "object",
+          "required": ["visibility", "content", "allowedMentions", "presentation"],
+          "properties": {
+            "visibility": { "enum": ["ephemeral", "public", "private"] },
+            "content": { "type": "string", "maxLength": 6000 },
+            "allowedMentions": { "type": "object" },
+            "presentation": { "type": "object" }
+          }
+        },
+        "actions": { "type": "array" },
+        "meta": { "type": "object" }
+      }
+    },
+    "providerStatus": {
+      "type": "object",
+      "required": ["name", "model", "ready", "fallback", "circuit"],
+      "properties": {
+        "name": { "type": "string" },
+        "model": { "type": "string" },
+        "ready": { "type": "boolean" },
+        "store": { "type": "boolean" },
+        "toolsAllowed": { "type": "boolean" },
+        "fallback": { "type": "object" },
+        "circuit": { "type": "object" },
+        "budget": { "type": ["object", "null"] },
+        "telemetry": { "type": "object" }
+      }
+    },
+    "monitorPollResult": {
+      "type": "object",
+      "required": ["checkedAt", "sourceCount", "newEventCount", "failedSourceCount", "results"],
+      "properties": {
+        "checkedAt": { "type": "string", "format": "date-time" },
+        "sourceCount": { "type": "integer", "minimum": 0 },
+        "newEventCount": { "type": "integer", "minimum": 0 },
+        "failedSourceCount": { "type": "integer", "minimum": 0 },
+        "results": { "type": "array" }
+      }
+    },
+    "updateEvaluation": {
+      "type": "object",
+      "required": ["evaluatedAt", "alertCount", "matchedAlertCount", "unmatchedEventCount", "deliveryCount", "highestSeverity", "alerts", "deliveries"],
+      "properties": {
+        "evaluatedAt": { "type": "string", "format": "date-time" },
+        "alertCount": { "type": "integer", "minimum": 0 },
+        "matchedAlertCount": { "type": "integer", "minimum": 0 },
+        "unmatchedEventCount": { "type": "integer", "minimum": 0 },
+        "deliveryCount": { "type": "integer", "minimum": 0 },
+        "highestSeverity": { "enum": ["informational", "attention", "urgent", "critical"] },
+        "alerts": { "type": "array" },
+        "deliveries": { "type": "array" }
+      }
+    },
+    "updateDigest": {
+      "type": "object",
+      "required": ["audience", "content", "allowedMentions", "presentation", "actions", "meta"],
+      "properties": {
+        "audience": { "enum": ["public", "private"] },
+        "content": { "type": "string", "maxLength": 6000 },
+        "allowedMentions": { "type": "object" },
+        "presentation": { "type": "object" },
+        "actions": { "type": "array" },
+        "meta": { "type": "object" }
+      }
+    },
+    "maintenanceProposal": {
+      "type": "object",
+      "required": ["status", "executionAuthority", "automaticExecutionAllowed", "resourceRefs", "riskLevel", "requiresConfirmation", "blockers", "steps", "rollback", "immutableHash"],
+      "properties": {
+        "status": { "enum": ["BLOCKED", "PROPOSED"] },
+        "executionAuthority": { "const": "khaos-nexus-shared-scheduler" },
+        "automaticExecutionAllowed": { "const": false },
+        "resourceRefs": { "type": "array", "items": { "type": "string" } },
+        "riskLevel": { "type": "integer", "minimum": 0, "maximum": 4 },
+        "requiresConfirmation": { "const": true },
+        "blockers": { "type": "array" },
+        "steps": { "type": "array" },
+        "rollback": { "type": "object" },
+        "immutableHash": { "type": "string" }
+      }
+    },
+    "errorResponse": {
+      "type": "object",
+      "required": ["apiVersion", "error"],
+      "properties": {
+        "apiVersion": { "const": "1" },
+        "error": {
+          "type": "object",
+          "required": ["code", "message", "retryable"],
+          "properties": {
+            "code": { "type": "string" },
+            "message": { "type": "string" },
+            "field": { "type": ["string", "null"] },
+            "retryable": { "type": "boolean" }
+          }
+        }
+      }
+    }
+  }
+}

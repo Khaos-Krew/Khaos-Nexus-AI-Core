@@ -13,6 +13,7 @@ import { createMaintenancePlan } from "./maintenance.js";
 import { ProviderRouter } from "./provider-factory.js";
 import { DeterministicProvider } from "./provider.js";
 import { authenticateRequest, stableHash } from "./security.js";
+import { serviceContractSummary } from "./service-contract.js";
 import { createUpdateDigest, evaluateUpdateImpact } from "./update-intelligence.js";
 import { compareUpdateResources } from "./updates.js";
 
@@ -212,6 +213,19 @@ export function createApp({
           directServiceForwarding: false,
           directDiscordConnection: false,
           directExecution: false,
+        }, origin);
+        return;
+      }
+
+      if (request.method === "GET" && pathname === "/api/v1/contracts") {
+        sendJson(response, 200, {
+          apiVersion: API_VERSION,
+          service: SERVICE_NAME,
+          contract: serviceContractSummary(),
+          schemasServedInline: false,
+          credentialsIncluded: false,
+          contentStored: false,
+          identitiesStored: false,
         }, origin);
         return;
       }
