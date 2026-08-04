@@ -9,11 +9,16 @@ General-purpose AI orchestration, Discord-facing contracts, game/mod update inte
 - **AI Core never executes operations.** It returns information, neutral Discord presentation models, provider update events, deterministic impact findings, delivery proposals, digests, and maintenance proposals.
 - **Provider credentials stay server-side.** Khaos Nexus desktop never stores or submits the general AI provider key.
 - **Observability stores aggregates only.** Prompts, context, responses, Discord identities, server identities, campaign data, and provider keys are never retained in provider telemetry.
+- **The desktop sidecar is supervised and local.** It requires per-launch authentication, binds only to loopback, selects a free port when requested, disables webhook intake, and exposes no HTTP shutdown endpoint.
 
 ## Current capabilities
 
-- Versioned health and capability discovery.
+- Versioned health, contract, and capability discovery.
+- Hardened dependency-free `NexusAiCoreClient` for Electron main-process use.
 - Optional or required service-token authentication.
+- Supervised Windows/Linux sidecar startup with IPC readiness and graceful shutdown.
+- Dynamic loopback port allocation and credential-free readiness files.
+- Deterministic sidecar bundle generation with SHA-256 integrity verification.
 - Request IDs, idempotency, rate limiting, and bounded bodies.
 - Protected credential-field rejection and output redaction.
 - Discord mention safety and neutral response contracts.
@@ -27,7 +32,7 @@ General-purpose AI orchestration, Discord-facing contracts, game/mod update inte
 - Game/mod version comparison, dependencies, release channels, platform readiness, and cluster drift.
 - Provider-backed update ingestion for GitHub releases, Modrinth project versions, CurseForge files, and Steam app news.
 - ETag and Last-Modified conditional polling, source backoff, failure isolation, event deduplication, and optional metadata persistence.
-- Optional GitHub release webhooks with HMAC-SHA256 signature validation and delivery deduplication.
+- Optional GitHub release webhooks with HMAC-SHA256 signature validation and delivery deduplication in standalone mode only.
 - Explicit source-to-resource impact evaluation with confirmed/likely/possible/unknown confidence.
 - Deterministic informational, attention, urgent, and critical severity classification.
 - Caller-authorized subscription matching, quiet-hour delivery advice, stable alert/delivery keys, and public-safe projections.
@@ -36,6 +41,29 @@ General-purpose AI orchestration, Discord-facing contracts, game/mod update inte
 - Fixture-based tests and GitHub Actions CI.
 
 Steam news is informational only. Khaos Nexus game adapters remain authoritative for installed and running dedicated-server builds. AI Core does not grant Discord permissions or store subscriptions; it only evaluates caller-provided authorized destinations.
+
+## Desktop sidecar
+
+The intended Khaos Nexus integration uses the unpublished sidecar bundle and the hardened client. The desktop launches `src/sidecar.js` with a protected service token, `HOST=127.0.0.1`, and `PORT=0`. The sidecar announces its selected endpoint only after the listener is active. The desktop validates the startup nonce and authority boundaries, constructs `NexusAiCoreClient`, and performs capability negotiation before enabling a feature.
+
+```text
+NEXUS_AI_CORE_SERVICE_TOKEN=<high-entropy-token>
+NEXUS_AI_CORE_STARTUP_NONCE=<desktop-nonce>
+NEXUS_AI_CORE_PARENT_PID=<desktop-pid>
+NEXUS_AI_CORE_READY_FILE=<absolute-private-path>
+HOST=127.0.0.1
+PORT=0
+```
+
+Build and verify the self-contained source bundle:
+
+```bash
+npm run bundle:sidecar
+npm run verify:sidecar
+npm run smoke:sidecar
+```
+
+The output is `dist/sidecar/khaos-nexus-ai-core-<version>/`. Building does not publish a GitHub release, tag, updater entry, or deployment.
 
 ## Provider selection
 
@@ -74,12 +102,17 @@ While the circuit is open, AI Core fails fast or uses the explicitly enabled det
 npm run build
 npm test
 npm run eval
+npm run contracts
+npm run bundle:sidecar
+npm run verify:sidecar
 npm run check
 ```
 
-`npm run eval` uses only the deterministic provider and the versioned fixtures in `evals/provider-fixtures.json`. It covers normal help/draft/diagnostic/incident/update behavior, unsafe mentions, credential-like input, execution claims, D&D leakage, internal-instruction disclosure, and repeatability. It does not use `OPENAI_API_KEY` or contact an external provider.
+`npm run eval` uses only the deterministic provider and the versioned fixtures in `evals/provider-fixtures.json`. `npm run contracts` verifies API, client, package, service-manifest, and sidecar-manifest synchronization. `npm run check` includes the deterministic bundle build and integrity verification.
 
 ## Run
+
+Standalone service:
 
 ```bash
 cp .env.example .env
@@ -87,13 +120,20 @@ npm run check
 npm start
 ```
 
-The service listens on `127.0.0.1:8790` by default. Provider credentials are optional and remain server-side. Set `CURSEFORGE_API_KEY` to enable CurseForge, and set `MONITOR_STATE_FILE` to persist credential-free monitor metadata.
+Supervised sidecar:
+
+```bash
+NEXUS_AI_CORE_SERVICE_TOKEN=<token> HOST=127.0.0.1 PORT=0 npm run sidecar
+```
+
+The standalone service listens on `127.0.0.1:8790` by default. The sidecar requires authentication and defaults to an operating-system-selected loopback port.
 
 ## Core routes
 
 ```text
 GET  /health
 GET  /api/v1/capabilities
+GET  /api/v1/contracts
 GET  /api/v1/provider/status
 GET  /api/v1/monitor/state
 POST /api/v1/discord/assist
@@ -107,6 +147,6 @@ POST /api/v1/incidents/summarize
 POST /api/v1/webhooks/github?sourceId=<registered-source-id>
 ```
 
-`GET /api/v1/provider/status` uses the existing service-token authentication model. Public health exposes only bounded provider readiness, while detailed telemetry remains authenticated. The webhook route is disabled by default and authenticates with `X-Hub-Signature-256`, not the desktop service token.
+The webhook route is available only to explicitly configured standalone deployments. Sidecar mode disables webhook intake.
 
-See [`docs/API.md`](docs/API.md), [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/EVALUATIONS.md`](docs/EVALUATIONS.md), and [`SECURITY.md`](SECURITY.md).
+See [`docs/API.md`](docs/API.md), [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/CLIENT_INTEGRATION.md`](docs/CLIENT_INTEGRATION.md), [`docs/SIDECAR.md`](docs/SIDECAR.md), [`docs/EVALUATIONS.md`](docs/EVALUATIONS.md), and [`SECURITY.md`](SECURITY.md).
