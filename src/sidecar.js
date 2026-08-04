@@ -36,7 +36,8 @@ async function main() {
     const exitCode = configurationError ? error.exitCode : SIDECAR_EXIT_CODES.STARTUP;
     const code = configurationError ? error.code : (error?.code ?? "SIDECAR_STARTUP_FAILED");
     process.stderr.write(`${sidecarDiagnostic("nexus-ai-core.sidecar-startup-error", code, exitCode)}\n`);
-    finish(exitCode);
+    if (runtime) await stop(exitCode);
+    else finish(exitCode);
   }
 }
 
