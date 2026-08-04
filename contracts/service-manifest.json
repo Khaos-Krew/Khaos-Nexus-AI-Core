@@ -1,7 +1,7 @@
 {
   "contractVersion": "1.0.0",
   "service": "khaos-nexus-ai-core",
-  "serviceVersion": "0.6.0",
+  "serviceVersion": "0.7.0",
   "apiVersion": "1",
   "targetService": "nexus-ai-core",
   "authentication": "bearer-service-token",

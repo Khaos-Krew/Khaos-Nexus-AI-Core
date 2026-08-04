@@ -1,19 +1,36 @@
 {
   "name": "khaos-nexus-ai-core",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "description": "General-purpose AI orchestration, Discord contracts, update intelligence, and safe operational proposals for Khaos Nexus.",
   "type": "module",
   "engines": {
     "node": ">=22"
   },
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./client": "./src/client.js",
+    "./contract": "./src/service-contract.js",
+    "./manifest": "./contracts/service-manifest.json",
+    "./sidecar": "./src/sidecar.js",
+    "./sidecar-contract": "./src/sidecar-contract.js",
+    "./sidecar-manifest": "./contracts/sidecar-manifest.json"
+  },
+  "bin": {
+    "khaos-nexus-ai-core-sidecar": "./src/sidecar.js"
+  },
   "scripts": {
     "dev": "node --watch src/index.js",
-    "build": "node --check src/constants.js && node --check src/errors.js && node --check src/security.js && node --check src/contracts.js && node --check src/http-client.js && node --check src/source-adapters.js && node --check src/monitor-store.js && node --check src/monitor-service.js && node --check src/updates.js && node --check src/update-intelligence.js && node --check src/maintenance.js && node --check src/provider.js && node --check src/openai-provider.js && node --check src/output-policy.js && node --check src/provider-circuit.js && node --check src/provider-observability.js && node --check src/provider-factory.js && node --check src/service-contract.js && node --check src/client.js && node --check src/app.js && node --check src/index.js && node --check scripts/run-evals.js && node --check scripts/verify-contracts.js",
+    "build": "node --check src/constants.js && node --check src/errors.js && node --check src/security.js && node --check src/contracts.js && node --check src/http-client.js && node --check src/source-adapters.js && node --check src/monitor-store.js && node --check src/monitor-service.js && node --check src/updates.js && node --check src/update-intelligence.js && node --check src/maintenance.js && node --check src/provider.js && node --check src/openai-provider.js && node --check src/output-policy.js && node --check src/provider-circuit.js && node --check src/provider-observability.js && node --check src/provider-factory.js && node --check src/service-contract.js && node --check src/client.js && node --check src/sidecar-config.js && node --check src/sidecar-contract.js && node --check src/sidecar-runtime.js && node --check src/sidecar.js && node --check src/app.js && node --check src/index.js && node --check scripts/run-evals.js && node --check scripts/verify-contracts.js && node --check scripts/build-sidecar-bundle.js && node --check scripts/verify-sidecar-bundle.js",
     "start": "node src/index.js",
+    "sidecar": "node src/sidecar.js",
     "test": "node --test tests/*.test.js",
+    "smoke:sidecar": "node --test tests/sidecar.test.js",
     "eval": "node scripts/run-evals.js",
     "contracts": "node scripts/verify-contracts.js",
-    "check": "npm run build && npm test && npm run eval && npm run contracts"
+    "bundle:sidecar": "node scripts/build-sidecar-bundle.js",
+    "verify:sidecar": "node scripts/verify-sidecar-bundle.js",
+    "check": "npm run build && npm test && npm run eval && npm run contracts && npm run bundle:sidecar && npm run verify:sidecar"
   }
 }

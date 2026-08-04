@@ -7,6 +7,7 @@
 The desktop remains responsible for:
 
 - protected service-token storage;
+- sidecar process supervision and startup-nonce validation;
 - user, guild, role, channel, module, and server authorization;
 - context construction and redaction;
 - the shared scheduler and polling cadence;
@@ -15,13 +16,29 @@ The desktop remains responsible for:
 - confirmations, updates, backups, restarts, rollback, and audit history;
 - routing `dnd.*` only to the separate D&D AI service.
 
+## Recommended sidecar launch
+
+Use the v0.7 sidecar bundle documented in `docs/SIDECAR.md`. The Electron main process should:
+
+1. Generate or retrieve a protected high-entropy service token.
+2. Generate a bounded startup nonce.
+3. Spawn `src/sidecar.js` with an IPC channel, `HOST=127.0.0.1`, and `PORT=0`.
+4. Pass the desktop process ID for orphan detection.
+5. Validate the IPC readiness object and matching nonce.
+6. Construct `NexusAiCoreClient` from the announced loopback endpoint and protected token.
+7. Call `contracts()` and `negotiate()` before enabling features.
+8. Route all polling through the existing shared scheduler.
+9. Shut down with the IPC message `{ "type": "nexus-ai-core.shutdown" }`.
+
+Do not infer readiness from process existence, fixed delays, or an assumed port. The sidecar emits readiness only after the listener is accepting requests.
+
 ## Creating the client
 
 ```js
-import { NexusAiCoreClient } from "./src/client.js";
+import { NexusAiCoreClient } from "khaos-nexus-ai-core/client";
 
 const client = new NexusAiCoreClient({
-  endpoint: "http://127.0.0.1:8790",
+  endpoint: readiness.endpoint,
   serviceToken: protectedServiceToken,
   timeoutMs: 15_000,
 });
@@ -35,7 +52,7 @@ Loopback HTTP is allowed for local service operation. Non-loopback endpoints req
 - unsupported protocols;
 - non-loopback HTTP.
 
-The service token is held in a private class field and is sent only in the Authorization header. It is not included in `status()`, serialization, URLs, or client errors.
+The service token is held in a private class field and is sent only in the Authorization header. It is not included in `status()`, serialization, URLs, readiness data, or client errors.
 
 ## Negotiating capabilities
 
@@ -61,7 +78,7 @@ Negotiation verifies:
 - every required capability;
 - provider readiness when explicitly required.
 
-Unknown additive capabilities may be ignored unless the desktop requires them. A breaking API change requires a new API major.
+The desktop should also compare the authenticated `contracts()` response with the bundled `contracts/service-manifest.json` and `contracts/sidecar-manifest.json`. Unknown additive capabilities may be ignored unless the desktop requires them. A breaking API change requires a new API major.
 
 ## Fixed client methods
 
@@ -123,34 +140,43 @@ Retry policy remains with the desktop and shared scheduler because read, generat
 
 Network errors, timeouts, malformed JSON, redirects, non-JSON responses, oversized responses, and request-ID mismatches use local `CLIENT_*` codes. Tokens and raw network error details are not propagated.
 
+Sidecar process exit codes are documented in `docs/SIDECAR.md`. Configuration and startup failures should be shown as service-unavailable states rather than disabling Nexus Bot or the D&D AI service.
+
 ## Contract synchronization
 
 Machine-readable artifacts:
 
 - `contracts/service-manifest.json`
 - `contracts/nexus-ai-core-v1.schema.json`
+- `contracts/sidecar-manifest.json`
 
-Source registry:
+Source registries:
 
 - `src/service-contract.js`
+- `src/sidecar-contract.js`
 
 Verification:
 
 ```bash
 npm run contracts
+npm run bundle:sidecar
+npm run verify:sidecar
 ```
 
-CI fails if service constants, package versions, capabilities, endpoint paths, client methods, schema references, authority boundaries, or static artifacts drift.
+CI fails if service constants, package versions, capabilities, endpoint paths, client methods, schema references, sidecar transport/lifecycle boundaries, package exports, bundle files, integrity hashes, or static artifacts drift.
 
 ## Forbidden integration patterns
 
 Do not:
 
-- place the service token in renderer state, public configuration, URLs, logs, backups, diagnostics, or Nexus Bot bootstrap data;
+- place the service token in renderer state, public configuration, URLs, logs, backups, diagnostics, readiness files, or Nexus Bot bootstrap data;
 - call AI Core directly from Discord handlers without existing permission checks;
-- use the client as a scheduler or background monitor;
+- use the sidecar or client as a separate scheduler;
+- enable GitHub webhook intake in desktop sidecar mode;
 - retry protected or disruptive proposals automatically;
 - convert an AI proposal into an action without local validation and confirmation;
 - route campaign context or `dnd.*` requests to AI Core;
-- store provider credentials in Khaos Nexus;
-- expose a generic client request function to renderer code.
+- share provider configuration with the D&D AI service;
+- expose a generic client request function to renderer code;
+- add an HTTP shutdown endpoint;
+- assume a fixed sidecar port or trust an unmatched readiness nonce.
