@@ -222,7 +222,7 @@ export function createApp({
           apiVersion: API_VERSION,
           service: SERVICE_NAME,
           contract: serviceContractSummary(),
-          schemaBodiesIncluded: false,
+          schemasServedInline: false,
           credentialsIncluded: false,
           contentStored: false,
           identitiesStored: false,
