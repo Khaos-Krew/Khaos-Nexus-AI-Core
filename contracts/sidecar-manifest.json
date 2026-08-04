@@ -1,0 +1,48 @@
+{
+  "sidecarContractVersion": "1.0.0",
+  "service": "khaos-nexus-ai-core",
+  "serviceVersion": "0.7.0",
+  "serviceContractVersion": "1.0.0",
+  "apiVersion": "1",
+  "targetService": "nexus-ai-core",
+  "entrypoint": "src/sidecar.js",
+  "readinessEvent": "nexus-ai-core.ready",
+  "shutdownMessage": "nexus-ai-core.shutdown",
+  "transport": {
+    "protocol": "http",
+    "allowedHosts": ["127.0.0.1", "::1"],
+    "dynamicPortAllowed": true,
+    "authenticationRequired": true,
+    "serviceTokenTransport": "authorization-bearer-header"
+  },
+  "supervision": {
+    "ipcReadinessSupported": true,
+    "ipcShutdownSupported": true,
+    "parentPidSupported": true,
+    "httpShutdownSupported": false,
+    "gracefulSignals": ["SIGINT", "SIGTERM"]
+  },
+  "boundaries": {
+    "directExecution": false,
+    "directDiscordConnection": false,
+    "directServiceForwarding": false,
+    "schedulerOwnedExternally": true,
+    "githubWebhooksEnabled": false,
+    "dndService": "Khaos-Krew/Khaos-Nexus-AI",
+    "dndNamespace": "dnd.*",
+    "directDndCallsAllowed": false
+  },
+  "bundle": {
+    "outputPattern": "dist/sidecar/khaos-nexus-ai-core-<serviceVersion>",
+    "integrityAlgorithm": "sha256",
+    "runtimeDependencies": 0,
+    "publicationAutomatic": false
+  },
+  "exitCodes": {
+    "success": 0,
+    "configuration": 64,
+    "startup": 70,
+    "parentLost": 71,
+    "forcedShutdown": 72
+  }
+}
