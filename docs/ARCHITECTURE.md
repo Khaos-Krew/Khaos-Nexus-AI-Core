@@ -6,7 +6,7 @@ Khaos Nexus AI Core is a non-D&D intelligence service. It interprets bounded req
 
 ```text
 Khaos Nexus Desktop / Nexus Bot
-  ├── nexus.* request -> Khaos Nexus AI Core
+  ├── nexus.* request -> hardened client -> supervised AI Core sidecar
   └── dnd.* request   -> Khaos Nexus D&D AI
 
 Khaos Nexus Shared Scheduler
@@ -25,9 +25,42 @@ Nexus AI Core Provider Router
 
 The desktop and supervised Nexus Bot runtime remain authoritative for authentication, Discord permissions, context selection, confirmations, schedules, subscriptions, installed-version inventory, game adapters, update execution, moderation, persistence, and audits.
 
+## Desktop sidecar boundary
+
+The v0.7 desktop runtime is a supervised local sidecar rather than an embedded renderer service or second bot process.
+
+The Electron main process:
+
+- generates or retrieves the protected service token;
+- chooses the startup nonce and optional private ready-file path;
+- launches the sidecar with an IPC channel and parent process ID;
+- validates the credential-free readiness record;
+- constructs `NexusAiCoreClient` from the announced loopback endpoint;
+- performs authenticated contract discovery and capability negotiation;
+- owns restart policy, user-facing status, and audit integration.
+
+The sidecar:
+
+- binds only to `127.0.0.1` or `::1`;
+- requires bearer authentication and supports an operating-system-selected port;
+- announces readiness only after the listener accepts requests;
+- disables GitHub webhook intake;
+- creates no polling timer or scheduler;
+- accepts lifecycle control through IPC or operating-system signals, not HTTP;
+- exits when its IPC parent disconnects or optional parent PID disappears;
+- emits no credentials, prompts, responses, Discord identities, server identities, or campaign data in readiness or diagnostics.
+
+The standalone entrypoint remains available for separately managed service deployments. Sidecar restrictions do not weaken standalone transport or webhook authentication; sidecar mode applies stricter local-only rules.
+
+## Bundle and integrity boundary
+
+`npm run bundle:sidecar` creates a source bundle containing only runtime JavaScript, the hardened client, service and sidecar contracts, package metadata, and integration/security documentation. It excludes environment files, monitor state, logs, tests, Git metadata, dependencies, and user-generated data.
+
+Every included file is listed in `integrity.json` with SHA-256 and byte length. `npm run verify:sidecar` rejects missing, modified, or unexpected files and validates package, service, sidecar, and bundle version alignment. The bundle workflow uploads an unpublished Windows artifact and never creates a release, tag, updater entry, or automatic deployment.
+
 ## D&D isolation
 
-`Khaos-Krew/Khaos-Nexus-AI` is the sibling specialist for D&D. The services do not call each other. AI Core rejects `dnd.*`, a non-zero routing depth, and any target other than `nexus-ai-core`. They do not share credentials, memory, tools, databases, provider configuration, prompts, or conversation state.
+`Khaos-Krew/Khaos-Nexus-AI` is the sibling specialist for D&D. The services do not call each other. AI Core rejects `dnd.*`, a non-zero routing depth, and any target other than `nexus-ai-core`. They do not share credentials, memory, tools, databases, provider configuration, prompts, conversation state, readiness records, or sidecar lifecycle control.
 
 ## Generation provider boundary
 
@@ -87,13 +120,17 @@ The provider telemetry collector stores only numeric and enum aggregates:
 
 It never stores prompts, context, generated text, request bodies, provider keys, Discord identities, server identities, campaign data, or raw provider errors. Detailed status is available only through the authenticated provider-status endpoint. Public health receives a reduced readiness projection.
 
-## Evaluation gate
+## Evaluation and contract gates
 
 The versioned offline corpus in `evals/provider-fixtures.json` runs through the deterministic provider and the same production policy path. `npm run eval` checks schema, subsystem, presentation type, severity, review requirements, forbidden patterns, rejection codes, and deterministic repeatability. Normal CI performs no external provider call and requires the configured pass threshold.
+
+`npm run contracts` verifies source constants, package metadata, service and sidecar manifests, package exports, endpoint/client alignment, schema references, transport rules, authority boundaries, and D&D isolation. `npm run check` additionally builds and verifies the sidecar bundle.
 
 ## Discord boundary
 
 AI Core returns neutral presentation models, alert proposals, delivery proposals, and digests. It does not return raw Discord REST payloads and does not decide Discord authorization. Nexus Bot is responsible for validating embed/component limits, choosing ephemeral or public delivery, rechecking permissions, applying allowed-mention restrictions, deduplicating actual deliveries, and sending the final response.
+
+The sidecar never logs into Discord, registers commands, sends messages, or receives the Discord bot token.
 
 ## Update ingestion boundary
 
@@ -124,12 +161,12 @@ Private projections may include typed local resource references and readiness re
 
 ## Monitor state
 
-The monitor store contains only source definitions, conditional-request metadata, health state, event identifiers, and webhook delivery identifiers. It does not contain provider credentials, generation prompts, generation responses, download payloads, Discord credentials, RCON information, raw private webhook bodies, subscription permissions, or campaign data. File persistence is optional; without `MONITOR_STATE_FILE`, state is process-local.
+The monitor store contains only source definitions, conditional-request metadata, health state, event identifiers, and webhook delivery identifiers. It does not contain provider credentials, generation prompts, generation responses, download payloads, Discord credentials, RCON information, raw private webhook bodies, subscription permissions, or campaign data. File persistence is optional; in sidecar mode an absolute private path is required when persistence is enabled.
 
 ## Webhook boundary
 
-GitHub release webhooks are disabled by default. When enabled, AI Core validates the raw body with the server-side secret and `X-Hub-Signature-256`, verifies the registered repository and release policy, and deduplicates delivery and release IDs. Webhooks produce normalized events only; they never publish to Discord or start maintenance.
+GitHub release webhooks are disabled by default in standalone mode and always disabled in desktop sidecar mode. When explicitly enabled for a standalone deployment, AI Core validates the raw body with the server-side secret, verifies the registered repository and release policy, and deduplicates delivery and release IDs. Webhooks produce normalized events only; they never publish to Discord or start maintenance.
 
 ## Execution boundary
 
-Downloads, file changes, server saves, backups, stops, updates, starts, health verification, staged rollout, rollback, Discord delivery, acknowledgement, ignore/pin changes, and subscription persistence remain the responsibility of registered Khaos Nexus modules and the shared scheduler.
+Downloads, file changes, server saves, backups, stops, updates, starts, health verification, staged rollout, rollback, Discord delivery, acknowledgement, ignore/pin changes, subscription persistence, and sidecar restart policy remain the responsibility of registered Khaos Nexus modules and the shared scheduler.
