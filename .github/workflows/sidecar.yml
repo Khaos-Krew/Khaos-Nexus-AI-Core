@@ -1,0 +1,41 @@
+name: Desktop Sidecar
+
+on:
+  pull_request:
+  push:
+    branches: [main, "agent/**"]
+
+permissions:
+  contents: read
+
+jobs:
+  sidecar:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Read service version
+        id: version
+        run: node -e "require('node:fs').appendFileSync(process.env.GITHUB_OUTPUT, 'version=' + require('./package.json').version + '\n')"
+      - name: Install locked package
+        run: npm install --ignore-scripts
+      - name: Full validation
+        run: npm run check
+      - name: Sidecar end-to-end smoke test
+        run: npm run smoke:sidecar
+      - name: Upload unpublished Windows sidecar
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: khaos-nexus-ai-core-sidecar-${{ steps.version.outputs.version }}-windows-x64
+          path: dist/sidecar/khaos-nexus-ai-core-${{ steps.version.outputs.version }}
+          if-no-files-found: error
+          retention-days: 14
