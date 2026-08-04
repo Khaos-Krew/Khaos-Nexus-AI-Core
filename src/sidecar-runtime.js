@@ -30,9 +30,15 @@ async function writeReadinessFile(filePath, readiness) {
   return filePath;
 }
 
-export function createSidecarRuntime({ env = process.env, output = process.stdout, errorOutput = process.stderr } = {}) {
+export function createSidecarRuntime({
+  env = process.env,
+  output = process.stdout,
+  errorOutput = process.stderr,
+  onExit = null,
+} = {}) {
   const configuration = parseSidecarConfiguration(env);
   const provider = createProviderFromEnvironment({ env });
+  const notifyExit = typeof onExit === "function" ? onExit : () => {};
   const monitorService = new MonitorService({
     registry: createSourceAdapterRegistry({
       githubToken: env.GITHUB_API_TOKEN ?? "",
@@ -61,18 +67,24 @@ export function createSidecarRuntime({ env = process.env, output = process.stdou
     stopping = true;
     if (parentTimer) clearInterval(parentTimer);
     if (readyFile) await rm(readyFile, { force: true }).catch(() => {});
-    if (!server.listening) return exitCode;
+    if (!server.listening) {
+      notifyExit(exitCode);
+      return exitCode;
+    }
 
     return new Promise((resolve) => {
       forcedTimer = setTimeout(() => {
         errorOutput.write(`${sidecarDiagnostic("nexus-ai-core.sidecar-forced-shutdown", "SIDECAR_FORCED_SHUTDOWN", SIDECAR_EXIT_CODES.FORCED_SHUTDOWN)}\n`);
         server.closeAllConnections?.();
+        notifyExit(SIDECAR_EXIT_CODES.FORCED_SHUTDOWN);
         resolve(SIDECAR_EXIT_CODES.FORCED_SHUTDOWN);
       }, configuration.shutdownGraceMs);
       forcedTimer.unref?.();
       server.close((error) => {
         clearTimeout(forcedTimer);
-        resolve(error ? SIDECAR_EXIT_CODES.FORCED_SHUTDOWN : exitCode);
+        const result = error ? SIDECAR_EXIT_CODES.FORCED_SHUTDOWN : exitCode;
+        notifyExit(result);
+        resolve(result);
       });
       server.closeIdleConnections?.();
     });
