@@ -18,6 +18,7 @@ All authenticated POST requests use the common envelope:
 
 - `GET /health`
 - `GET /api/v1/capabilities`
+- `GET /api/v1/contracts`
 - `GET /api/v1/provider/status`
 - `GET /api/v1/monitor/state`
 - `POST /api/v1/discord/assist`
@@ -28,7 +29,27 @@ All authenticated POST requests use the common envelope:
 - `POST /api/v1/monitor/poll`
 - `POST /api/v1/maintenance/plans`
 - `POST /api/v1/incidents/summarize`
-- `POST /api/v1/webhooks/github?sourceId=<registered-source-id>`
+- `POST /api/v1/webhooks/github?sourceId=<registered-source-id>` in explicitly configured standalone mode only
+
+There is no HTTP shutdown route. Sidecar lifecycle is supervised through IPC and operating-system signals.
+
+## Contract discovery
+
+`GET /api/v1/contracts` requires the service token and returns the canonical service contract, endpoint registry, compatibility policy, schema references, and authority boundaries. Schema bodies, credentials, prompts, generated content, and identities are not included inline.
+
+The desktop bundle also contains:
+
+- `contracts/service-manifest.json`
+- `contracts/nexus-ai-core-v1.schema.json`
+- `contracts/sidecar-manifest.json`
+
+The authenticated response and bundled manifest must agree before the desktop enables a capability.
+
+## Desktop sidecar transport
+
+The sidecar listens only on `127.0.0.1` or `::1`, requires bearer authentication, and may use port `0` so the operating system selects an available port. Its endpoint is delivered through the supervised readiness contract after the listener is active.
+
+Sidecar mode disables GitHub webhook intake. It does not create a polling timer; Khaos Nexus continues to own cadence through the shared scheduler.
 
 ## Generation provider behavior
 
@@ -152,20 +173,14 @@ The digest is a neutral Discord-safe presentation model with bounded text, group
 
 ## GitHub webhook
 
-The webhook endpoint is disabled unless `GITHUB_WEBHOOKS_ENABLED=true`. Configure a GitHub release webhook URL containing a previously registered GitHub source ID:
+The webhook endpoint is disabled unless `GITHUB_WEBHOOKS_ENABLED=true` in standalone service mode. Configure a GitHub release webhook URL containing a previously registered GitHub source ID:
 
 ```text
 /api/v1/webhooks/github?sourceId=nexus-releases
 ```
 
-Required headers:
-
-- `X-Hub-Signature-256`
-- `X-GitHub-Delivery`
-- `X-GitHub-Event`
-
-The raw payload is authenticated using the server-side `GITHUB_WEBHOOK_SECRET`. Bearer authentication is not used for this endpoint.
+The raw payload is authenticated using the server-side webhook secret. Bearer authentication is not used for this endpoint. Sidecar mode always disables this intake path.
 
 ## Execution rule
 
-Every response is advisory, observed provider metadata, a delivery proposal, or a maintenance proposal. AI Core does not send Discord messages, modify subscriptions or permissions, modify campaign data, execute server commands, download provider files, install updates, or create scheduler jobs.
+Every response is advisory, observed provider metadata, a delivery proposal, or a maintenance proposal. AI Core does not send Discord messages, modify subscriptions or permissions, modify campaign data, execute server commands, download provider files, install updates, create scheduler jobs, or shut itself down through HTTP.
