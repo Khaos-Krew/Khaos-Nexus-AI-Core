@@ -1,4 +1,5 @@
 import { AppError } from "./errors.js";
+import { OllamaLocalProvider } from "./ollama-provider.js";
 import { OpenAIResponsesProvider } from "./openai-provider.js";
 import { validateProviderOutputPolicy } from "./output-policy.js";
 import { ProviderCircuitBreaker } from "./provider-circuit.js";
@@ -158,6 +159,14 @@ export class ProviderRouter {
   }
 }
 
+function fallbackPolicy(env) {
+  const policy = String(env.AI_PROVIDER_FALLBACK ?? "disabled").trim().toLowerCase();
+  if (!["disabled", "deterministic"].includes(policy)) {
+    throw new AppError("AI_PROVIDER_FALLBACK is invalid", { status: 503, code: "AI_PROVIDER_FALLBACK_INVALID" });
+  }
+  return policy;
+}
+
 export function createProviderFromEnvironment({ env = process.env, fetchImpl = globalThis.fetch } = {}) {
   const selected = String(env.AI_PROVIDER ?? "deterministic-local").trim().toLowerCase();
   let primary;
@@ -166,6 +175,18 @@ export function createProviderFromEnvironment({ env = process.env, fetchImpl = g
 
   if (selected === "deterministic-local" || selected === "deterministic") {
     primary = new DeterministicProvider();
+  } else if (selected === "ollama-local" || selected === "ollama") {
+    primary = new OllamaLocalProvider({
+      model: env.OLLAMA_MODEL ?? "",
+      endpoint: env.OLLAMA_ENDPOINT ?? "http://127.0.0.1:11434",
+      fetchImpl,
+      timeoutMs: envInteger(env, "OLLAMA_TIMEOUT_MS", 120_000, { min: 5_000, max: 300_000 }),
+      maxResponseBytes: envInteger(env, "OLLAMA_MAX_RESPONSE_BYTES", 1_000_000, { min: 10_000, max: 5_000_000 }),
+      retries: envInteger(env, "OLLAMA_RETRIES", 0, { min: 0, max: 2 }),
+    });
+    const policy = fallbackPolicy(env);
+    fallbackOnRetryable = policy === "deterministic";
+    fallback = fallbackOnRetryable ? new DeterministicProvider() : null;
   } else if (selected === "openai-responses" || selected === "openai") {
     primary = new OpenAIResponsesProvider({
       apiKey: env.OPENAI_API_KEY ?? "",
@@ -179,11 +200,8 @@ export function createProviderFromEnvironment({ env = process.env, fetchImpl = g
       dailyRequestBudget: envInteger(env, "OPENAI_DAILY_REQUEST_BUDGET", 0, { min: 0, max: 1_000_000 }),
       dailyTokenBudget: envInteger(env, "OPENAI_DAILY_TOKEN_BUDGET", 0, { min: 0, max: 1_000_000_000 }),
     });
-    const fallbackPolicy = String(env.AI_PROVIDER_FALLBACK ?? "disabled").trim().toLowerCase();
-    if (!["disabled", "deterministic"].includes(fallbackPolicy)) {
-      throw new AppError("AI_PROVIDER_FALLBACK is invalid", { status: 503, code: "AI_PROVIDER_FALLBACK_INVALID" });
-    }
-    fallbackOnRetryable = fallbackPolicy === "deterministic";
+    const policy = fallbackPolicy(env);
+    fallbackOnRetryable = policy === "deterministic";
     fallback = fallbackOnRetryable ? new DeterministicProvider() : null;
   } else {
     throw new AppError("AI_PROVIDER is unsupported", { status: 503, code: "AI_PROVIDER_NOT_SUPPORTED" });
