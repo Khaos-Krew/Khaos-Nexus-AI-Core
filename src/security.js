@@ -83,8 +83,10 @@ export function verifyHmacSha256(payload, secret, signature) {
 export function extractBearerToken(request) {
   const header = request.headers.authorization;
   if (typeof header !== "string") return null;
-  const match = /^Bearer\s+(.+)$/i.exec(header.trim());
-  return match?.[1] ?? null;
+  const trimmed = header.trim();
+  if (!trimmed.toLowerCase().startsWith("bearer ")) return null;
+  const token = trimmed.slice(7).trim();
+  return token || null;
 }
 
 export function authenticateRequest(request, { serviceToken, authRequired }) {
